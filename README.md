@@ -135,7 +135,7 @@ This application instead:
 
 ### Prerequisites
 
-- Node.js (v18+ recommended)
+- Node.js (v16+ required, v18+ recommended)
 - MongoDB (v5.0+ recommended)
 - Ollama
 - Git
@@ -144,8 +144,8 @@ This application instead:
 
 1. **Clone and Setup**
 ```bash
-git clone https://github.com/your-username/no-js-ai-chat.git
-cd no-js-ai-chat
+git clone https://github.com/horensen/no-js-ai.git
+cd no-js-ai
 chmod +x docker-setup.sh
 ```
 
@@ -157,21 +157,36 @@ nano docker.env
 
 Key configuration options in `docker.env`:
 ```bash
-# AI Model Configuration
-OLLAMA_MODEL=llama3.2
-OLLAMA_URL=http://host.docker.internal:11434
-
-# Security Settings
-SESSION_SECRET=your-super-secret-key-here  # CHANGE THIS!
+# Application Environment
 NODE_ENV=production
-
-# Application Settings
 PORT=3000
-MAX_MESSAGE_LENGTH=2000
-LOG_LEVEL=info
 
-# MongoDB Settings
-MONGODB_URI=mongodb://mongo:27017/no-js-ai-chat
+# MongoDB Configuration (Docker Compose)
+MONGODB_URI=mongodb://mongodb:27017/no-js-ai
+
+# MongoDB Authentication (recommended for production)
+MONGO_ROOT_USER=admin
+MONGO_ROOT_PASSWORD=changeme-secure-password
+
+# Ollama Configuration
+OLLAMA_URL=http://host.docker.internal:11434
+OLLAMA_MODEL=llama3.2
+
+# Security Configuration
+SESSION_SECRET=your-super-secret-session-key-change-this-in-production-minimum-32-chars
+
+# Rate Limiting Configuration
+RATE_LIMIT_ENABLED=true
+
+# Message Configuration
+MAX_MESSAGE_LENGTH=2000
+
+# Streaming Configuration
+STREAMING_ENABLED=true
+THINKING_DELAY=1500
+
+# Logging Configuration
+LOG_LEVEL=info
 ```
 
 3. **Install Ollama and Models**
@@ -220,8 +235,8 @@ ollama pull llama3.2
 
 1. **Clone and Install**
 ```bash
-git clone https://github.com/your-username/no-js-ai-chat.git
-cd no-js-ai-chat
+git clone https://github.com/horensen/no-js-ai.git
+cd no-js-ai
 cd backend
 npm install
 cd ..
@@ -264,31 +279,31 @@ ollama pull llama3.2
 
 4. **Configure Environment**
 ```bash
-cp backend/.env.example backend/.env
+cp backend/env.example backend/.env
 nano backend/.env
 ```
 
 Example `.env` configuration:
 ```bash
-# Server Configuration
+# Environment Configuration for No-JS AI Chat Backend
+
+# Application Settings
 NODE_ENV=development
 PORT=3000
-SESSION_SECRET=your-development-secret-key
 
 # Database Configuration
-MONGODB_URI=mongodb://localhost:27017/no-js-ai-chat
+MONGODB_URI=mongodb://localhost:27017/no-js-ai
 
-# Ollama Configuration
+# Ollama AI Service Configuration
 OLLAMA_URL=http://localhost:11434
 OLLAMA_MODEL=llama3.2
 
-# Security Settings
+# Message Configuration
 MAX_MESSAGE_LENGTH=2000
-RATE_LIMIT_WINDOW_MS=60000
-RATE_LIMIT_MAX_REQUESTS=10
 
-# Logging
-LOG_LEVEL=debug
+# Streaming Configuration
+STREAMING_ENABLED=true
+THINKING_DELAY=1500
 ```
 
 5. **Start Development Server**
@@ -308,19 +323,13 @@ no-js-ai/
 │   │   ├── config/             # Configuration files
 │   │   │   └── database.js     # MongoDB connection
 │   │   ├── middleware/         # Express middleware
-│   │   │   ├── headers.js      # Header configuration
-│   │   │   ├── rateLimiting.js # Rate limiting
-│   │   │   ├── security.js     # Security middleware
+│   │   │   ├── security.js     # Security middleware & rate limiting
 │   │   │   └── validation.js   # Input validation
 │   │   ├── models/             # MongoDB schemas
 │   │   │   └── Chat.js         # Chat session schema
 │   │   ├── routes/             # API routes
-│   │   │   ├── chat.js         # Main chat endpoints
 │   │   │   ├── chatRoutes.js   # Chat route exports
-│   │   │   ├── healthRoutes.js # Health check endpoints
-│   │   │   ├── index.js        # Route index
-│   │   │   ├── sessions.js     # Session management
-│   │   │   └── utility.js      # Utility endpoints
+│   │   │   └── healthRoutes.js # Health check endpoints
 │   │   ├── services/           # Business logic
 │   │   │   ├── chatService.js  # Chat operations
 │   │   │   └── ollamaService.js # AI integration
@@ -328,29 +337,15 @@ no-js-ai/
 │   │   │   ├── constants.js    # Application constants
 │   │   │   ├── logger.js       # Logging utility
 │   │   │   ├── markdown.js     # Markdown processing
-│   │   │   ├── ollama.js       # Ollama utilities
 │   │   │   ├── response.js     # Response helpers
-│   │   │   ├── routeHelpers.js # Route helper functions
 │   │   │   ├── session.js      # Session utilities
-│   │   │   ├── streaming.js    # Streaming utilities
 │   │   │   └── validation.js   # Input validation
 │   │   └── server.js           # Main server file
 │   ├── tests/                  # Test suites
 │   │   ├── middleware/         # Middleware tests
-│   │   │   ├── rateLimiting.test.js
-│   │   │   └── validation.test.js
 │   │   ├── routes/             # Route tests
-│   │   │   └── chatRoutes.test.js
 │   │   ├── services/           # Service tests
-│   │   │   ├── chatService.test.js
-│   │   │   └── ollamaService.test.js
 │   │   ├── utils/              # Utility tests
-│   │   │   ├── ollama.test.js
-│   │   │   ├── response.test.js
-│   │   │   ├── routeHelpers.test.js
-│   │   │   ├── session.test.js
-│   │   │   ├── streaming.test.js
-│   │   │   └── validation.test.js
 │   │   └── setup.js            # Test setup configuration
 │   ├── coverage/               # Test coverage reports
 │   ├── jest.config.js          # Jest configuration
@@ -394,10 +389,9 @@ no-js-ai/
 ```bash
 cd backend
 npm test                 # Run all tests
-npm run test:unit        # Unit tests only
-npm run test:integration # Integration tests only
 npm run test:coverage    # With coverage report
 npm run test:watch       # Watch mode
+npm run test:ci          # CI environment
 ```
 
 **Adding Database Models**
