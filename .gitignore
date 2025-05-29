@@ -13,7 +13,10 @@ package-lock.json
 .env.development
 .env.test
 .env.production
+.env.staging
 docker.env
+*.env
+!*.env.example
 
 # Logs
 logs/
@@ -86,6 +89,11 @@ jspm_packages/
 *~
 .DS_Store
 Thumbs.db
+*.sublime-project
+*.sublime-workspace
+.vscode/settings.json
+.vscode/launch.json
+.vscode/extensions.json
 
 # Backup files
 *.bak
@@ -96,6 +104,8 @@ Thumbs.db
 # Docker related (keep examples)
 docker.env
 !docker.env.example
+docker-data/
+.docker/
 
 # Database files (local development)
 *.sqlite
@@ -113,15 +123,51 @@ coverage/
 .DS_Store
 .AppleDouble
 .LSOverride
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
 
 # Windows
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
 
 # Linux
 *~
+.directory
+.Trash-*
 
 # Temporary files
 tmp/
 temp/
+*.temp
+
+# Build outputs
+dist/
+build/
+out/
+.output/
+
+# Error logs
+error.log
+debug.log
+
+# Lock files for different package managers
+yarn.lock
+pnpm-lock.yaml
+bun.lockb
+
+# Runtime configuration
+.npmrc
+.yarnrc
