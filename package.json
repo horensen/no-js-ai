@@ -1,0 +1,26 @@
+{
+  "name": "no-js-ai-chat",
+  "version": "1.0.0",
+  "description": "No-JS AI Chat Application - Secure chat interface without JavaScript",
+  "main": "backend/src/server.js",
+  "scripts": {
+    "start": "cd backend && npm start",
+    "dev": "cd backend && npm run dev",
+    "install:backend": "cd backend && npm install",
+    "test": "cd backend && npm test",
+    "test:coverage": "cd backend && npm run test:coverage",
+    "docker:start": "./docker-setup.sh start",
+    "docker:stop": "./docker-setup.sh stop",
+    "docker:logs": "./docker-setup.sh logs"
+  },
+  "keywords": ["ai", "chat", "ollama", "no-javascript", "secure"],
+  "author": "No-JS AI Chat Team",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/no-js-ai-chat.git"
+  }
+}

@@ -1,0 +1,56 @@
+<!-- Left Sidebar -->
+<div class="gptv4-sidebar">
+    <div class="gptv4-sidebar-header">
+        <h2 class="gptv4-sidebar-title">AI Chat</h2>
+        <a href="/new" class="gptv4-new-chat-btn">New Chat</a>
+    </div>
+
+    <div class="gptv4-sidebar-sessions">
+        <% if (locals.sessions && sessions.length > 0) { %>
+            <div class="gptv4-sessions-list">
+                <% sessions.forEach(function(session) { %>
+                    <div class="gptv4-session-item <%= session.sessionId === currentSessionId ? 'active' : '' %>">
+                        <div class="gptv4-session-content">
+                            <a href="/?session=<%= session.sessionId %>" class="gptv4-session-link">
+                                <div class="gptv4-session-preview"><%= session.preview %></div>
+                                <div class="gptv4-session-meta">
+                                    <%= session.messageCount === 0 ? 'No messages' :
+                                        session.messageCount === 1 ? '1 message' :
+                                        session.messageCount + ' messages' %> •
+                                    <%= new Date(session.updatedAt).toLocaleDateString() %>
+                                </div>
+                            </a>
+                        </div>
+                        <div class="gptv4-session-actions">
+                            <form action="/sessions/<%= session.sessionId %>/delete" method="post" style="display: inline;">
+                                <button type="submit" class="gptv4-delete-btn" title="Delete chat">🗑️</button>
+                            </form>
+                        </div>
+                    </div>
+                <% }); %>
+            </div>
+        <% } else { %>
+            <div class="gptv4-no-sessions">
+                <p>No chat history yet</p>
+                <p><a href="/new" class="gptv4-new-chat-link">Start your first chat</a></p>
+            </div>
+        <% } %>
+    </div>
+
+    <div class="gptv4-sidebar-footer">
+        <!-- Theme Toggle -->
+        <div class="gptv4-theme-toggle">
+            <form action="/toggle-theme" method="post" style="display: inline;">
+                <% if (locals.currentSessionId) { %>
+                    <input type="hidden" name="returnUrl" value="/?session=<%= currentSessionId %>">
+                <% } else { %>
+                    <input type="hidden" name="returnUrl" value="/">
+                <% } %>
+                <button type="submit" class="gptv4-theme-toggle-btn" title="Toggle light/dark mode">
+                    <span class="gptv4-theme-icon-dark">☀️</span>
+                    <span class="gptv4-theme-icon-light">🌙</span>
+                </button>
+            </form>
+        </div>
+    </div>
+</div>

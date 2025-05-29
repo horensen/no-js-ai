@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<%- include('partials/head', {
+    title: 'Debug - No-JS AI Chat',
+    additionalMeta: '<meta http-equiv="Content-Security-Policy" content="script-src \'unsafe-inline\';">'
+}) %>
+<body class="<%= (locals.theme === 'light') ? 'gptv4-body-light' : 'gptv4-body' %>">
+    <div style="padding: 20px; font-family: monospace;">
+        <h1>🔧 Debug Page</h1>
+
+        <h2>JavaScript Loading Test</h2>
+        <div id="js-test-results">
+            <p>Testing JavaScript execution...</p>
+        </div>
+
+        <h2>API Test</h2>
+        <div id="api-test-results">
+            <p>Testing API endpoints...</p>
+        </div>
+
+        <h2>Session List Test</h2>
+        <div id="session-test-results">
+            <p>Testing session loading...</p>
+        </div>
+
+        <h2>Streaming Test</h2>
+        <div id="streaming-test-results">
+            <p>Testing streaming functionality...</p>
+        </div>
+
+        <hr>
+        <p><a href="/">← Back to Chat</a></p>
+    </div>
+
+    <!-- Include all JavaScript modules -->
+    <script src="/js/utils.js"></script>
+    <script src="/js/chat-sessions.js"></script>
+    <script src="/js/chat-streaming.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const jsResults = document.getElementById('js-test-results');
+            const apiResults = document.getElementById('api-test-results');
+            const sessionResults = document.getElementById('session-test-results');
+            const streamingResults = document.getElementById('streaming-test-results');
+
+            // Test 1: JavaScript loading
+            let jsTests = [];
+            jsTests.push(`window.ChatUtils: ${typeof window.ChatUtils}`);
+            jsTests.push(`window.ChatSessions: ${typeof window.ChatSessions}`);
+            jsTests.push(`window.ChatStreaming: ${typeof window.ChatStreaming}`);
+            jsTests.push(`fetch available: ${typeof fetch}`);
+            jsTests.push(`EventSource available: ${typeof EventSource}`);
+
+            jsResults.innerHTML = `
+                <h3>✅ JavaScript Status:</h3>
+                <ul>
+                    ${jsTests.map(test => `<li>${test}</li>`).join('')}
+                </ul>
+            `;
+
+            // Test 2: API endpoint
+            fetch('/api/sessions')
+                .then(response => response.json())
+                .then(data => {
+                    apiResults.innerHTML = `
+                        <h3>✅ API Test Passed:</h3>
+                        <p>Sessions found: ${data.data?.length || 0}</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                })
+                .catch(error => {
+                    apiResults.innerHTML = `
+                        <h3>❌ API Test Failed:</h3>
+                        <p style="color: red;">Error: ${error.message}</p>
+                    `;
+                });
+
+            // Test 3: Session loading
+            if (window.ChatSessions) {
+                // Create a mock container
+                const mockContainer = document.createElement('div');
+                mockContainer.innerHTML = `
+                    <div id="sessions-loading">Loading...</div>
+                    <div id="sessions-list"></div>
+                `;
+                document.body.appendChild(mockContainer);
+
+                // Try to load sessions
+                window.ChatSessions.loadSessions('test-session')
+                    .then(() => {
+                        const sessionsLoading = document.getElementById('sessions-loading');
+                        const sessionsList = document.getElementById('sessions-list');
+
+                        sessionResults.innerHTML = `
+                            <h3>✅ Session Loading Test:</h3>
+                            <p>Loading display: ${sessionsLoading?.style.display || 'default'}</p>
+                            <p>Sessions HTML length: ${sessionsList?.innerHTML.length || 0}</p>
+                            <div style="background: #f5f5f5; padding: 10px; margin: 10px 0;">
+                                ${sessionsList?.innerHTML || 'No content'}
+                            </div>
+                        `;
+                    })
+                    .catch(error => {
+                        sessionResults.innerHTML = `
+                            <h3>❌ Session Loading Failed:</h3>
+                            <p style="color: red;">Error: ${error.message}</p>
+                        `;
+                    });
+            } else {
+                sessionResults.innerHTML = `
+                    <h3>❌ ChatSessions not available</h3>
+                    <p style="color: red;">window.ChatSessions is undefined</p>
+                `;
+            }
+
+            // Test 4: Streaming functionality
+            if (window.ChatStreaming && typeof EventSource !== 'undefined') {
+                streamingResults.innerHTML = `
+                    <h3>✅ Streaming Available</h3>
+                    <p>ChatStreaming functions: ${Object.keys(window.ChatStreaming).join(', ')}</p>
+                    <button onclick="testStreaming()" style="margin: 10px 0; padding: 5px 10px;">Test Streaming</button>
+                    <div id="streaming-test-output"></div>
+                `;
+            } else {
+                streamingResults.innerHTML = `
+                    <h3>❌ Streaming Not Available</h3>
+                    <p style="color: red;">
+                        ChatStreaming: ${typeof window.ChatStreaming}<br>
+                        EventSource: ${typeof EventSource}
+                    </p>
+                `;
+            }
+        });
+
+        // Test streaming function
+        function testStreaming() {
+            const output = document.getElementById('streaming-test-output');
+            output.innerHTML = '<p>Testing streaming connection...</p>';
+
+            // Test with a valid session ID from the API
+            fetch('/api/sessions')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.data && data.data.length > 0) {
+                        const sessionId = data.data[0].sessionId;
+                        const testMessage = 'Hello, this is a streaming test';
+
+                        output.innerHTML = `<p>Testing with session: ${sessionId}</p>`;
+
+                        const eventSource = new EventSource(`/stream/${sessionId}?message=${encodeURIComponent(testMessage)}`);
+                        let receivedEvents = [];
+
+                        eventSource.addEventListener('thinking', function(event) {
+                            receivedEvents.push('thinking: ' + event.data);
+                            output.innerHTML += `<p>🤔 Thinking: ${JSON.parse(event.data).message}</p>`;
+                        });
+
+                        eventSource.addEventListener('start', function(event) {
+                            receivedEvents.push('start: ' + event.data);
+                            output.innerHTML += `<p>🚀 Started streaming</p>`;
+                        });
+
+                        eventSource.addEventListener('token', function(event) {
+                            receivedEvents.push('token: ' + event.data);
+                            const token = JSON.parse(event.data);
+                            output.innerHTML += `<span style="background: yellow;">${token.content}</span>`;
+                        });
+
+                        eventSource.addEventListener('complete', function(event) {
+                            receivedEvents.push('complete: ' + event.data);
+                            output.innerHTML += `<p>✅ Streaming completed!</p>`;
+                            eventSource.close();
+                        });
+
+                        eventSource.addEventListener('error', function(event) {
+                            output.innerHTML += `<p style="color: red;">❌ Streaming error occurred</p>`;
+                            eventSource.close();
+                        });
+
+                        // Close after 30 seconds max
+                        setTimeout(() => {
+                            if (eventSource.readyState !== EventSource.CLOSED) {
+                                eventSource.close();
+                                output.innerHTML += `<p>⏰ Test timeout - closed connection</p>`;
+                            }
+                        }, 30000);
+
+                    } else {
+                        output.innerHTML = '<p style="color: red;">No sessions available for testing</p>';
+                    }
+                })
+                .catch(error => {
+                    output.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+                });
+        }
+    </script>
+</body>
+</html>

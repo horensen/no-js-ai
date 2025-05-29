@@ -1,0 +1,51 @@
+<% if (locals.noSessions || (messages.length === 0 && !locals.isLoading)) { %>
+    <div class="gptv4-welcome">
+        <% if (locals.noSessions) { %>
+            <h1>Welcome to No-JS AI Chat</h1>
+            <p>Start your first conversation by <a href="/new">creating a new chat</a>.</p>
+        <% } else { %>
+            <h1>How can I help you today?</h1>
+        <% } %>
+    </div>
+<% } else { %>
+    <div class="gptv4-messages" id="messages-container">
+        <% messages.forEach(function(message, index) { %>
+            <% if (message.role === 'user') { %>
+                <!-- USER MESSAGE: Blue bubble on the right -->
+                <div class="gptv4-message-row gptv4-message-user" data-role="user" data-index="<%= index %>">
+                    <div class="gptv4-message-bubble user-bubble">
+                        <div class="gptv4-message-content user-content"><%- message.content %></div>
+                    </div>
+                </div>
+            <% } else { %>
+                <!-- AI MESSAGE: Formatted markdown on the left -->
+                <div class="gptv4-message-row gptv4-message-assistant" data-role="assistant" data-index="<%= index %>">
+                    <div class="gptv4-message-content ai-content"><%- message.content %></div>
+                </div>
+            <% } %>
+        <% }); %>
+        <!-- Auto-scroll anchor -->
+        <div id="bottom-anchor" class="scroll-anchor"></div>
+    </div>
+<% } %>
+
+<% if (locals.isLoading) { %>
+    <div class="gptv4-loading-container">
+        <div class="gptv4-loading-indicator">
+            <div class="gptv4-dots">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+            <span class="gptv4-loading-text">AI is thinking...</span>
+        </div>
+        <!-- Auto-scroll anchor for loading state -->
+        <div id="loading-anchor" class="scroll-anchor"></div>
+    </div>
+<% } %>
+
+<% if (locals.error) { %>
+    <div class="gptv4-alert gptv4-alert-error">
+        <%= error %>
+    </div>
+<% } %>

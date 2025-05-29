@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<%- include('partials/head', {
+    title: 'No-JS AI Chat',
+    isLoading: locals.isLoading,
+    sessionId: sessionId
+}) %>
+<body class="<%= (locals.theme === 'light') ? 'gptv4-body-light' : 'gptv4-body' %>">
+    <div class="gptv4-root">
+        <%- include('partials/sidebar') %>
+
+        <!-- Main Chat Area -->
+        <main class="gptv4-main">
+            <div class="gptv4-center-area">
+                <%- include('partials/messages', {
+                    messages: messages,
+                    isLoading: locals.isLoading,
+                    error: locals.error
+                }) %>
+            </div>
+
+            <%- include('partials/input-form', {
+                sessionId: sessionId,
+                isLoading: locals.isLoading
+            }) %>
+        </main>
+    </div>
+
+    <!-- No JavaScript - Pure HTML/CSS implementation for security -->
+</body>
+</html>

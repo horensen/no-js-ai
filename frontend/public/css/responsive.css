@@ -1,0 +1,310 @@
+/* Responsive Design */
+
+/* Tablet and smaller desktop */
+@media (max-width: 1100px) {
+    .gpt-messages-container {
+        max-width: 100vw;
+    }
+    .gpt-input-bar {
+        max-width: 100vw;
+    }
+    .gptv4-center-area {
+        max-width: 98vw;
+    }
+}
+
+/* Large mobile and small tablet */
+@media (max-width: 900px) {
+    .gpt-sidebar {
+        width: 60px;
+        min-width: 60px;
+        padding: 0;
+    }
+    .gpt-sidebar-header, .gpt-sidebar-nav, .gpt-sidebar-footer {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+    }
+    .gpt-title, .gpt-sidebar-link, .gpt-sidebar-version {
+        display: none;
+    }
+    .gpt-input-bar {
+        left: 60px;
+    }
+}
+
+/* Standard mobile devices */
+@media (max-width: 768px) {
+    /* Base layout adjustments */
+    .container {
+        margin: 0;
+        min-height: 100vh;
+    }
+
+    .header {
+        padding: 1.5rem 1rem;
+        border-radius: 0;
+    }
+
+    .header h1 {
+        font-size: 2rem;
+    }
+
+    .main-content {
+        padding: 1rem;
+    }
+
+    .message {
+        max-width: 95%;
+        padding: 1rem;
+    }
+
+    .input-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .btn {
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+
+    .footer-content {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .error-actions {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .error-actions .btn {
+        width: 100%;
+        max-width: 300px;
+    }
+
+    /* GPT v4 theme mobile adjustments */
+    .gptv4-sidebar {
+        position: fixed;
+        left: -280px;
+        top: 0;
+        height: 100%;
+        z-index: 1000;
+        transition: left 0.3s ease;
+    }
+
+    .gptv4-sidebar.open {
+        left: 0;
+    }
+
+    .gptv4-main {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    .gptv4-center-area {
+        max-width: 98vw;
+        padding: 1rem 0.5rem;
+    }
+
+    .gptv4-message-bubble {
+        font-size: 1rem;
+        padding: 0.8rem 1rem;
+        max-width: 85% !important;
+    }
+
+    .gptv4-message-row.gptv4-message-user .gptv4-message-bubble,
+    .gptv4-message-row[data-role="user"] .gptv4-message-bubble {
+        max-width: 85% !important;
+    }
+
+    .gptv4-message-row.gptv4-message-assistant .gptv4-message-content,
+    .gptv4-message-row[data-role="assistant"] .gptv4-message-content {
+        max-width: 85% !important;
+    }
+
+    /* Welcome message adjustments */
+    .gptv4-welcome {
+        margin: 60px 0 0 0;
+    }
+
+    .gptv4-welcome h1 {
+        font-size: 2rem;
+    }
+
+    /* Input form mobile adjustments */
+    body {
+        padding-bottom: 80px;
+    }
+}
+
+/* Small mobile devices */
+@media (max-width: 600px) {
+    .gpt-root {
+        flex-direction: column;
+    }
+    .gpt-sidebar {
+        width: 100vw;
+        height: 60px;
+        flex-direction: row;
+        border-right: none;
+        border-bottom: 1px solid #2a2b32;
+    }
+    .gpt-main {
+        height: calc(100vh - 60px);
+    }
+    .gpt-input-bar {
+        left: 0;
+        max-width: 100vw;
+    }
+
+    /* GPT v4 theme small mobile */
+    .gptv4-center-area {
+        padding: 1rem 0.5rem;
+        padding-bottom: 100px;
+    }
+
+    .gptv4-welcome {
+        margin: 40px 0 0 0;
+    }
+
+    .gptv4-welcome h1 {
+        font-size: 1.8rem;
+    }
+
+    .gptv4-message-bubble {
+        font-size: 0.95rem;
+        padding: 0.7rem 0.9rem;
+        max-width: 90% !important;
+    }
+
+    .gptv4-message-row.gptv4-message-user .gptv4-message-bubble,
+    .gptv4-message-row[data-role="user"] .gptv4-message-bubble {
+        max-width: 90% !important;
+    }
+
+    .gptv4-message-row.gptv4-message-assistant .gptv4-message-content,
+    .gptv4-message-row[data-role="assistant"] .gptv4-message-content {
+        max-width: 90% !important;
+    }
+}
+
+/* Very small mobile devices */
+@media (max-width: 480px) {
+    .header {
+        padding: 1rem;
+    }
+
+    .header h1 {
+        font-size: 1.8rem;
+    }
+
+    .subtitle {
+        font-size: 1rem;
+    }
+
+    .main-content {
+        padding: 0.5rem;
+    }
+
+    .chat-container {
+        border-radius: 10px;
+    }
+
+    .messages-container {
+        padding: 1rem;
+    }
+
+    .input-container {
+        padding: 1rem;
+    }
+
+    .welcome-message {
+        padding: 2rem 1rem;
+    }
+
+    /* GPT v4 theme very small mobile */
+    .gptv4-center-area {
+        padding: 0.5rem 0.25rem;
+        padding-bottom: 100px;
+    }
+
+    .gptv4-welcome h1 {
+        font-size: 1.6rem;
+        margin-bottom: 1rem;
+    }
+
+    .gptv4-message-bubble {
+        font-size: 0.9rem;
+        padding: 0.6rem 0.8rem;
+        max-width: 95% !important;
+    }
+
+    .gptv4-message-row.gptv4-message-user .gptv4-message-bubble,
+    .gptv4-message-row[data-role="user"] .gptv4-message-bubble {
+        max-width: 95% !important;
+    }
+
+    .gptv4-message-row.gptv4-message-assistant .gptv4-message-content,
+    .gptv4-message-row[data-role="assistant"] .gptv4-message-content {
+        max-width: 95% !important;
+        font-size: 0.9rem !important;
+    }
+
+    /* Adjust message spacing for very small screens */
+    .gptv4-messages {
+        gap: 0.25rem;
+    }
+
+    .gptv4-message-row {
+        margin-bottom: 0.25rem !important;
+    }
+
+    /* Content padding adjustments */
+    .gptv4-message-row.gptv4-message-user,
+    .gptv4-message-row[data-role="user"] {
+        padding-right: 0.5rem !important;
+    }
+
+    .gptv4-message-row.gptv4-message-assistant,
+    .gptv4-message-row[data-role="assistant"] {
+        padding-left: 0.5rem !important;
+    }
+}
+
+/* Landscape orientation adjustments */
+@media (max-width: 768px) and (orientation: landscape) {
+    .gptv4-center-area {
+        padding-bottom: 120px;
+    }
+
+    .gptv4-welcome {
+        margin: 20px 0 0 0;
+    }
+
+    .gptv4-welcome h1 {
+        font-size: 1.8rem;
+        margin-bottom: 1rem;
+    }
+
+    body {
+        padding-bottom: 90px;
+    }
+}
+
+/* High DPI screens */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    .gptv4-message-bubble {
+        border-width: 0.5px;
+    }
+
+    .gptv4-loading-indicator {
+        border-width: 0.5px;
+    }
+}
+
+/* Dark mode media query support */
+@media (prefers-color-scheme: dark) {
+    /* This would apply dark theme automatically if the user prefers dark mode */
+    /* Currently the themes are manually applied via body classes */
+}

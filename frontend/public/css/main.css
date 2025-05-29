@@ -1,0 +1,21 @@
+/* Main CSS - Modular Import Structure */
+/* Import order is important - base styles first, then components, then themes, etc. */
+
+/* 1. Base styles - Reset, typography, layout fundamentals */
+@import url('./base.css');
+
+/* 2. UI Components - Buttons, alerts, forms, error pages */
+@import url('./components.css');
+
+/* 3. Chat-specific styles - Messages, chat containers, streaming */
+@import url('./chat.css');
+
+/* 4. Themes - Dark and light theme styles */
+@import url('./themes.css');
+
+/* 5. Responsive design - Media queries and mobile optimizations */
+@import url('./responsive.css');
+
+/* 6. Utilities - Accessibility, print styles, animations, utility classes */
+@import url('./utilities.css');
+

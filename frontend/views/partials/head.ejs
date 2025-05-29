@@ -1,0 +1,26 @@
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title || 'No-JS AI Chat' %></title>
+    <link rel="stylesheet" href="/css/main.css">
+    <meta http-equiv="Content-Security-Policy" content="script-src 'none';">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <% if (locals.isProcessing && locals.sessionId) { %>
+    <!-- Auto-refresh every 3 seconds to check for AI response completion -->
+    <% const refreshUrl = locals.messageCountBeforeAI ? `/check-response/${sessionId}?count=${messageCountBeforeAI}#loading-anchor` : `/check-response/${sessionId}#loading-anchor` %>
+    <meta http-equiv="refresh" content="3;url=<%= refreshUrl %>">
+    <% } else if (locals.responseComplete && locals.sessionId) { %>
+    <!-- Final redirect to show completed conversation -->
+    <meta http-equiv="refresh" content="1;url=/?session=<%= sessionId %>#bottom-anchor">
+    <% } else if (locals.scrollToBottom && locals.sessionId) { %>
+    <!-- Immediate scroll to bottom after response -->
+    <meta http-equiv="refresh" content="0;url=/?session=<%= sessionId %>#bottom-anchor">
+    <% } %>
+
+    <% if (locals.additionalMeta) { %>
+        <%- additionalMeta %>
+    <% } %>
+</head>

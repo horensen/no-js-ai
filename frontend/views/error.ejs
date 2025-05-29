@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<%- include('partials/head', {
+    title: 'Error - No-JS AI Chat',
+    additionalMeta: '<meta http-equiv="Content-Security-Policy" content="script-src \'none\';">'
+}) %>
+<body class="<%= (locals.theme === 'light') ? 'gptv4-body-light' : 'gptv4-body' %>">
+    <div class="container">
+        <header class="header">
+            <h1>🤖 No-JS AI Chat</h1>
+            <p class="subtitle">Secure AI Assistant for JavaScript-Disabled Environments</p>
+        </header>
+
+        <main class="main-content">
+            <div class="error-container">
+                <div class="error-icon">⚠️</div>
+                <h2>Something went wrong</h2>
+                <div class="alert alert-error">
+                    <%= error %>
+                </div>
+
+                <div class="error-actions">
+                    <a href="/" class="btn btn-primary">Go Back to Chat</a>
+                    <a href="/new" class="btn btn-secondary">Start New Chat</a>
+                    <a href="/health" class="btn btn-link">Check System Status</a>
+                </div>
+
+                <div class="error-help">
+                    <h3>Common Issues:</h3>
+                    <ul>
+                        <li><strong>Ollama Connection Error:</strong> Make sure Ollama is running on localhost:11434</li>
+                        <li><strong>Database Error:</strong> Check if MongoDB is running and accessible</li>
+                        <li><strong>Timeout Error:</strong> The AI model might be busy, please try again</li>
+                        <li><strong>Model Not Found:</strong> Ensure the required model is installed in Ollama</li>
+                    </ul>
+                </div>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <div class="footer-content">
+                <div class="footer-info">
+                    <p><strong>Need Help?</strong> Check the system status or restart the services.</p>
+                </div>
+                <div class="footer-actions">
+                    <span class="version">v1.0.0</span>
+                </div>
+            </div>
+        </footer>
+    </div>
+</body>
+</html>
