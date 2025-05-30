@@ -5,9 +5,30 @@
             <p>Start your first conversation by <a href="/new">creating a new chat</a>.</p>
         <% } else { %>
             <h1>How can I help you today?</h1>
+            <!-- System Prompt Indicator -->
+            <% if (locals.systemPrompt && locals.systemPrompt.trim()) { %>
+                <div class="gptv4-system-prompt-indicator">
+                    <div class="gptv4-system-prompt-icon">🤖</div>
+                    <div class="gptv4-system-prompt-info">
+                        <div class="gptv4-system-prompt-label">Active System Context:</div>
+                        <div class="gptv4-system-prompt-preview"><%= locals.systemPrompt %></div>
+                    </div>
+                </div>
+            <% } %>
         <% } %>
     </div>
 <% } else { %>
+    <!-- System Prompt Indicator for active chats -->
+    <% if (locals.systemPrompt && locals.systemPrompt.trim()) { %>
+        <div class="gptv4-system-prompt-indicator gptv4-system-prompt-indicator-compact">
+            <div class="gptv4-system-prompt-icon">🤖</div>
+            <div class="gptv4-system-prompt-info">
+                <div class="gptv4-system-prompt-label">System Context Active</div>
+                <div class="gptv4-system-prompt-preview"><%= locals.systemPrompt %></div>
+            </div>
+        </div>
+    <% } %>
+
     <div class="gptv4-messages" id="messages-container">
         <% messages.forEach(function(message, index) { %>
             <% if (message.role === 'user') { %>

@@ -236,3 +236,161 @@
     position: absolute;
     left: 0;
 }
+
+/* System Prompt Section */
+.gptv4-system-prompt-section {
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--gptv4-border-light);
+}
+
+.gptv4-system-prompt-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: var(--gptv4-text-primary);
+}
+
+.gptv4-system-prompt-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.gptv4-system-prompt-textarea {
+    width: 100%;
+    min-height: 80px;
+    padding: 0.75rem;
+    border: 1px solid var(--gptv4-border-light);
+    border-radius: 6px;
+    background: var(--gptv4-surface);
+    color: var(--gptv4-text-primary);
+    font-size: 0.75rem;
+    line-height: 1.4;
+    resize: vertical;
+    font-family: inherit;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.gptv4-system-prompt-textarea:focus {
+    outline: none;
+    border-color: var(--gptv4-accent);
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+}
+
+.gptv4-system-prompt-textarea::placeholder {
+    color: var(--gptv4-text-secondary);
+    font-size: 0.75rem;
+}
+
+.gptv4-system-prompt-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.gptv4-system-prompt-btn {
+    background: transparent;
+    color: #ececf1;
+    border: 1px solid #ececf1;
+    padding: 0.5rem 0.875rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+    white-space: nowrap;
+}
+
+.gptv4-system-prompt-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(-1px);
+}
+
+.gptv4-system-prompt-btn:active {
+    transform: translateY(0);
+}
+
+.gptv4-system-prompt-char-count {
+    font-size: 0.7rem;
+    color: var(--gptv4-text-secondary);
+    white-space: nowrap;
+}
+
+/* Dark theme adjustments for system prompt */
+body.gptv4-body .gptv4-system-prompt-textarea {
+    background: var(--gptv4-surface-elevated);
+    border-color: var(--gptv4-border);
+}
+
+body.gptv4-body .gptv4-system-prompt-textarea:focus {
+    border-color: var(--gptv4-accent);
+}
+
+/* System Prompt Indicator in Chat Area */
+.gptv4-system-prompt-indicator {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+    border: 1px solid #0ea5e9;
+    border-radius: 10px;
+    font-size: 0.875rem;
+}
+
+.gptv4-system-prompt-indicator-compact {
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    font-size: 0.8rem;
+}
+
+.gptv4-system-prompt-icon {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+    margin-top: 0.125rem;
+}
+
+.gptv4-system-prompt-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.gptv4-system-prompt-label {
+    font-weight: 600;
+    color: #0369a1;
+    margin-bottom: 0.25rem;
+}
+
+.gptv4-system-prompt-preview {
+    color: #0c4a6e;
+    line-height: 1.4;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+/* Dark theme adjustments for system prompt indicator */
+body.gptv4-body .gptv4-system-prompt-indicator {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+    border-color: #3b82f6;
+}
+
+body.gptv4-body .gptv4-system-prompt-label {
+    color: #60a5fa;
+}
+
+body.gptv4-body .gptv4-system-prompt-preview {
+    color: #cbd5e1;
+}
+
+/* Light theme override for system prompt button */
+body.gptv4-body-light .gptv4-system-prompt-btn {
+    color: #000000;
+    border-color: #000000;
+}
+
+body.gptv4-body-light .gptv4-system-prompt-btn:hover {
+    background: rgba(0, 0, 0, 0.1);
+}

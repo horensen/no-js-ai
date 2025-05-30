@@ -62,19 +62,34 @@ describe('Chat Service', () => {
     });
 
     test('should create new chat session if not found', async () => {
+      const expectedSession = {
+        sessionId: 'new-session',
+        systemPrompt: '',
+        messages: []
+      };
+
       Chat.findOne.mockResolvedValue(null);
-      Chat.mockImplementation(() => ({
-        ...mockChat,
-        save: jest.fn().mockResolvedValue(mockChat)
-      }));
+
+      // Create a mock chat instance that behaves like the real one
+      const mockChatInstance = {
+        sessionId: 'new-session',
+        systemPrompt: '',
+        messages: [],
+        save: jest.fn().mockResolvedValue()
+      };
+
+      Chat.mockImplementation(() => mockChatInstance);
 
       const result = await chatService.getOrCreateChatSession('new-session');
 
       expect(Chat.findOne).toHaveBeenCalledWith({ sessionId: 'new-session' });
       expect(Chat).toHaveBeenCalledWith({
         sessionId: 'new-session',
+        systemPrompt: '',
         messages: []
       });
+      expect(mockChatInstance.save).toHaveBeenCalled();
+      expect(result).toBe(mockChatInstance);
     });
 
     test('should handle database errors', async () => {
@@ -290,6 +305,7 @@ describe('Chat Service', () => {
     test('should return stats for existing session', async () => {
       const mockChatWithStats = {
         sessionId: 'test-session',
+        systemPrompt: '',
         messages: [
           { role: 'user', content: 'Hello' },
           { role: 'assistant', content: 'Hi there!' },
@@ -305,12 +321,13 @@ describe('Chat Service', () => {
       expect(Chat.findOne).toHaveBeenCalledWith({ sessionId: 'test-session' });
       expect(result).toEqual({
         sessionId: 'test-session',
+        systemPrompt: '',
         totalMessages: 3,
         userMessages: 2,
         assistantMessages: 1,
         totalCharacters: 26, // 'Hello' (5) + 'Hi there!' (9) + 'How are you?' (12) = 26
-        createdAt: mockChatWithStats.createdAt,
-        updatedAt: mockChatWithStats.updatedAt
+        createdAt: new Date('2023-01-01'),
+        updatedAt: new Date('2023-01-01')
       });
     });
 

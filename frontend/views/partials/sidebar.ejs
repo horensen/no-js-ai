@@ -5,6 +5,28 @@
         <a href="/new" class="gptv4-new-chat-btn">New Chat</a>
     </div>
 
+    <!-- System Prompt Section -->
+    <% if (locals.currentSessionId) { %>
+    <div class="gptv4-system-prompt-section">
+        <h3 class="gptv4-system-prompt-title">System Prompt</h3>
+        <form action="/system-prompt" method="post" class="gptv4-system-prompt-form">
+            <input type="hidden" name="sessionId" value="<%= currentSessionId %>">
+            <textarea
+                name="systemPrompt"
+                class="gptv4-system-prompt-textarea"
+                placeholder="Set a context or personality for the AI (e.g., 'You are a helpful programming assistant', 'Act as a creative writing coach', etc.)"
+                maxlength="2000"
+                rows="4"><%= locals.systemPrompt || '' %></textarea>
+            <div class="gptv4-system-prompt-actions">
+                <button type="submit" class="gptv4-system-prompt-btn">Update Context</button>
+                <div class="gptv4-system-prompt-char-count">
+                    <span id="char-count"><%= (locals.systemPrompt || '').length %></span>/2000
+                </div>
+            </div>
+        </form>
+    </div>
+    <% } %>
+
     <div class="gptv4-sidebar-sessions">
         <% if (locals.sessions && sessions.length > 0) { %>
             <div class="gptv4-sessions-list">

@@ -6,28 +6,38 @@ const { MODEL_PREFERENCES, STREAMING_CONFIG, ERROR_MESSAGES } = require('./const
 const logger = require('./logger');
 
 /**
- * Format conversation history for Ollama prompt
+ * Format conversation history for Ollama prompt with optional system prompt
  * @param {string|Array} messageOrHistory - Single message or conversation history
+ * @param {string} systemPrompt - Optional system prompt to include as context
  * @returns {string} - Formatted prompt for Ollama
  */
-function formatConversationPrompt(messageOrHistory) {
-  // If it's a string, return as-is
+function formatConversationPrompt(messageOrHistory, systemPrompt = '') {
+  let prompt = '';
+
+  // Add system prompt if provided
+  if (systemPrompt && systemPrompt.trim()) {
+    prompt += `System: ${systemPrompt.trim()}\n\n`;
+  }
+
+  // If it's a string, return as-is (with system prompt if provided)
   if (typeof messageOrHistory === 'string') {
-    return messageOrHistory;
+    return prompt + messageOrHistory;
   }
 
   // If it's an array (conversation history), format it
   if (Array.isArray(messageOrHistory)) {
     if (messageOrHistory.length === 0) {
-      return '';
+      return prompt;
     }
 
-    return messageOrHistory
+    const formattedHistory = messageOrHistory
       .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
-      .join('\n\n') + '\n\nAssistant:';
+      .join('\n\n');
+
+    return prompt + formattedHistory + '\n\nAssistant:';
   }
 
-  return String(messageOrHistory);
+  return prompt + String(messageOrHistory);
 }
 
 /**

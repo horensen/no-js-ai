@@ -171,14 +171,16 @@ describe('Ollama Service', () => {
     });
 
     test('should handle string message input', async () => {
+      const message = 'Hello, world!';
+
       axios.mockResolvedValue({
         data: { response: 'AI response here' }
       });
 
-      const result = await ollamaService.callOllama('Hello, world!', 'llama3.2:latest');
+      const result = await ollamaService.callOllama(message);
 
       expect(result).toBe('AI response here');
-      expect(formatConversationPrompt).toHaveBeenCalledWith('Hello, world!');
+      expect(formatConversationPrompt).toHaveBeenCalledWith('Hello, world!', '');
       expect(getOllamaRequestConfig).toHaveBeenCalledWith('llama3.2:latest', 'Hello, world!', false);
     });
 
@@ -193,10 +195,10 @@ describe('Ollama Service', () => {
         data: { response: 'AI response to conversation' }
       });
 
-      const result = await ollamaService.callOllama(history, 'llama3.2:latest');
+      const result = await ollamaService.callOllama(history);
 
       expect(result).toBe('AI response to conversation');
-      expect(formatConversationPrompt).toHaveBeenCalledWith(history);
+      expect(formatConversationPrompt).toHaveBeenCalledWith(history, '');
     });
 
     test('should auto-select model when not specified', async () => {
@@ -431,7 +433,7 @@ describe('Ollama Service', () => {
       const result = await ollamaService.callOllamaStreaming(history, jest.fn(), 'llama3.2:latest');
 
       expect(result).toBe('streaming response');
-      expect(formatConversationPrompt).toHaveBeenCalledWith(history);
+      expect(formatConversationPrompt).toHaveBeenCalledWith(history, '');
     });
 
     test('should handle multiple response chunks in single data event', async () => {

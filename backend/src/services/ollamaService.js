@@ -61,16 +61,17 @@ async function findBestAvailableModel() {
  * @param {string|Array} messageOrHistory - Message or conversation history
  * @param {Function} onToken - Callback for each token
  * @param {string} model - Model name (optional)
+ * @param {string} systemPrompt - System prompt for context (optional)
  * @returns {Promise<string>} - Complete response
  */
-async function callOllamaStreaming(messageOrHistory, onToken, model = null) {
+async function callOllamaStreaming(messageOrHistory, onToken, model = null, systemPrompt = '') {
   try {
     // If no model specified, find the best available one
     if (!model) {
       model = await findBestAvailableModel();
     }
 
-    const prompt = formatConversationPrompt(messageOrHistory);
+    const prompt = formatConversationPrompt(messageOrHistory, systemPrompt);
     const config = getOllamaRequestConfig(model, prompt, true);
 
     const response = await axios(`${OLLAMA_URL}/api/generate`, config);
@@ -119,16 +120,17 @@ async function callOllamaStreaming(messageOrHistory, onToken, model = null) {
  * Call Ollama API (non-streaming)
  * @param {string|Array} messageOrHistory - Message or conversation history
  * @param {string} model - Model name (optional)
+ * @param {string} systemPrompt - System prompt for context (optional)
  * @returns {Promise<string>} - AI response
  */
-async function callOllama(messageOrHistory, model = null) {
+async function callOllama(messageOrHistory, model = null, systemPrompt = '') {
   try {
     // If no model specified, find the best available one
     if (!model) {
       model = await findBestAvailableModel();
     }
 
-    const prompt = formatConversationPrompt(messageOrHistory);
+    const prompt = formatConversationPrompt(messageOrHistory, systemPrompt);
     const config = getOllamaRequestConfig(model, prompt, false);
 
     const response = await axios(`${OLLAMA_URL}/api/generate`, config);

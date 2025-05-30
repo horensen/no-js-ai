@@ -35,6 +35,7 @@ router.get('/', asyncHandler(async (req, res) => {
     renderData.sessions = [];
     renderData.currentSessionId = null;
     renderData.noSessions = true;
+    renderData.systemPrompt = '';
     return res.render('chat', renderData);
   }
 
@@ -50,10 +51,11 @@ router.get('/', asyncHandler(async (req, res) => {
 
     logger.debug(`Rendering chat for session ${sessionId}, message count: ${chat.messages.length}`, 'CHAT_ROUTES');
 
-    // Include sessions in render data for server-side rendering
+    // Include sessions and system prompt in render data for server-side rendering
     const renderData = getChatRenderData(sessionId, chat.messages, null, false, null, theme);
     renderData.sessions = formattedSessions;
     renderData.currentSessionId = sessionId;
+    renderData.systemPrompt = chat.systemPrompt || '';
 
     res.render('chat', renderData);
   } catch (error) {
@@ -98,6 +100,7 @@ router.post('/chat', asyncHandler(async (req, res) => {
     const renderData = getChatRenderData(sessionId, chatWithUserMessage.messages, null, true, validation.message, theme);
     renderData.sessions = formattedSessions;
     renderData.currentSessionId = sessionId;
+    renderData.systemPrompt = chatWithUserMessage.systemPrompt || '';
     renderData.isProcessing = true; // Flag to indicate AI is processing
     renderData.scrollToAnchor = 'loading-anchor';
     renderData.messageCountBeforeAI = chatWithUserMessage.messages.length; // Track message count for polling
@@ -110,8 +113,12 @@ router.post('/chat', asyncHandler(async (req, res) => {
         // Get the updated chat with all messages for context
         const chatWithHistory = await chatService.getOrCreateChatSession(sessionId);
 
-        // Pass the conversation history to Ollama for context
-        const aiResponse = await ollamaService.callOllama(chatWithHistory.messages);
+        // Pass the conversation history and system prompt to Ollama for context
+        const aiResponse = await ollamaService.callOllama(
+          chatWithHistory.messages,
+          null,
+          chatWithHistory.systemPrompt || ''
+        );
         await chatService.addMessageToSession(sessionId, 'assistant', aiResponse);
 
         // Log completion for debugging
@@ -167,6 +174,7 @@ router.get('/check-response/:sessionId', asyncHandler(async (req, res) => {
       const renderData = getChatRenderData(sessionId, chat.messages, null, false, null, theme);
       renderData.sessions = formattedSessions;
       renderData.currentSessionId = sessionId;
+      renderData.systemPrompt = chat.systemPrompt || '';
       renderData.responseComplete = true;
 
       res.render('chat', renderData);
@@ -175,6 +183,7 @@ router.get('/check-response/:sessionId', asyncHandler(async (req, res) => {
       const renderData = getChatRenderData(sessionId, chat.messages, null, true, null, theme);
       renderData.sessions = formattedSessions;
       renderData.currentSessionId = sessionId;
+      renderData.systemPrompt = chat.systemPrompt || '';
       renderData.isProcessing = true;
       renderData.scrollToAnchor = 'loading-anchor';
       renderData.expectedMessageCount = expectedCount || currentCount; // Track for next check
@@ -185,6 +194,46 @@ router.get('/check-response/:sessionId', asyncHandler(async (req, res) => {
   } catch (error) {
     logger.error('Error checking response', 'CHAT_ROUTES', error);
     sendErrorPage(res, 'Error checking response status');
+  }
+}));
+
+// Update system prompt
+router.post('/system-prompt', asyncHandler(async (req, res) => {
+  const { systemPrompt, sessionId } = req.body;
+
+  // Validate session ID
+  if (!isValidSessionId(sessionId)) {
+    return res.status(400).json({
+      success: false,
+      error: 'Invalid session format.'
+    });
+  }
+
+  try {
+    // Update system prompt
+    await chatService.updateSystemPrompt(sessionId, systemPrompt || '');
+
+    // Redirect back to the chat session
+    res.redirect(`/?session=${sessionId}`);
+  } catch (error) {
+    logger.error('Error updating system prompt', 'CHAT_ROUTES', error);
+
+    // Try to render the chat page with error
+    try {
+      const chat = await chatService.getOrCreateChatSession(sessionId);
+      const allSessions = await chatService.getAllChatSessions();
+      const formattedSessions = allSessions.map(formatSessionForAPI);
+      const theme = req.cookies.theme || 'light';
+
+      const renderData = getChatRenderData(sessionId, chat.messages, error.message || 'Failed to update system prompt', false, null, theme);
+      renderData.sessions = formattedSessions;
+      renderData.currentSessionId = sessionId;
+      renderData.systemPrompt = chat.systemPrompt || '';
+
+      res.render('chat', renderData);
+    } catch (renderError) {
+      sendErrorPage(res, 'Failed to update system prompt');
+    }
   }
 }));
 
