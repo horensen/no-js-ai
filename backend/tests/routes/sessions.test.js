@@ -71,8 +71,8 @@ describe('Sessions Routes', () => {
         { sessionId: 'session2', messages: [] }
       ];
       const mockFormattedSessions = [
-        { id: 'session1', title: 'Session 1' },
-        { id: 'session2', title: 'Session 2' }
+        { sessionId: 'session1', id: 'session1', title: 'Session 1' },
+        { sessionId: 'session2', id: 'session2', title: 'Session 2' }
       ];
 
       chatService.getAllChatSessions.mockResolvedValue(mockSessions);

@@ -19,18 +19,24 @@ router.get('/', asyncHandler(async (req, res) => {
   let sessionId = req.query.session;
   const theme = req.cookies.theme || 'light';
 
+  logger.debug(`Home route accessed with sessionId: ${sessionId}`, 'CHAT_ROUTES');
+
   // Load all sessions for sidebar first
   const allSessions = await chatService.getAllChatSessions();
   const formattedSessions = allSessions.map(formatSessionForAPI);
 
+  logger.debug(`Found ${formattedSessions.length} total sessions`, 'CHAT_ROUTES');
+
   // If no session provided and sessions exist, redirect to most recent
   if (!sessionId && formattedSessions.length > 0) {
     const mostRecentSession = formattedSessions[0];
+    logger.debug(`No session provided, redirecting to most recent: ${mostRecentSession.sessionId}`, 'CHAT_ROUTES');
     return res.redirect(`/?session=${mostRecentSession.sessionId}`);
   }
 
   // If no session provided and no sessions exist, show empty state
   if (!sessionId && formattedSessions.length === 0) {
+    logger.debug('No session provided and no sessions exist, showing empty state', 'CHAT_ROUTES');
     const renderData = getChatRenderData(null, [], null, false, null, theme);
     renderData.sessions = [];
     renderData.currentSessionId = null;
@@ -39,17 +45,26 @@ router.get('/', asyncHandler(async (req, res) => {
     return res.render('chat', renderData);
   }
 
-  // Generate new session if provided ID is invalid
+  // Check if provided session ID is valid format
   if (!isValidSessionId(sessionId)) {
+    logger.debug(`Invalid session ID format: ${sessionId}, generating new session`, 'CHAT_ROUTES');
     sessionId = generateSessionId();
     return res.redirect(`/?session=${sessionId}`);
+  }
+
+  // Check if the session actually exists in our sessions list
+  const sessionExists = formattedSessions.some(s => s.sessionId === sessionId);
+  if (!sessionExists) {
+    logger.debug(`Session ${sessionId} not found in existing sessions, treating as new session`, 'CHAT_ROUTES');
+  } else {
+    logger.debug(`Session ${sessionId} found in existing sessions, loading it`, 'CHAT_ROUTES');
   }
 
   try {
     // Load current chat session
     const chat = await chatService.getOrCreateChatSession(sessionId);
 
-    logger.debug(`Rendering chat for session ${sessionId}, message count: ${chat.messages.length}`, 'CHAT_ROUTES');
+    logger.debug(`Successfully loaded/created session ${sessionId}, message count: ${chat.messages.length}`, 'CHAT_ROUTES');
 
     // Include sessions and system prompt in render data for server-side rendering
     const renderData = getChatRenderData(sessionId, chat.messages, null, false, null, theme);

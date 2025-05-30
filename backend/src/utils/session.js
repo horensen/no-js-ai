@@ -83,6 +83,7 @@ function formatSessionForAPI(session) {
   // Handle null/undefined sessions
   if (!session) {
     return {
+      sessionId: null,
       id: null,
       messageCount: 0,
       messageCounts: { user: 0, assistant: 0, total: 0 },
@@ -118,6 +119,7 @@ function formatSessionForAPI(session) {
   }
 
   return {
+    sessionId: session.sessionId,
     id: session.sessionId,
     title,
     messageCount: messages.length,

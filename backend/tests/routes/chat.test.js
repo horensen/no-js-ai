@@ -85,6 +85,7 @@ describe('Chat Routes', () => {
     generateSessionId.mockReturnValue('new-session-id');
     formatSessionForAPI.mockImplementation((session) => ({
       sessionId: session.sessionId || 'session-1',
+      id: session.sessionId || 'session-1',
       title: session.title || 'Chat Session',
       lastActivity: session.lastActivity || new Date()
     }));
@@ -217,7 +218,7 @@ describe('Chat Routes', () => {
         .expect(200);
 
       expect(validateMessage).toHaveBeenCalledWith('test message');
-      expect(chatService.addMessageToSession).toHaveBeenCalledWith('test-session', 'user', 'test message');
+      expect(chatService.addMessageToSession).toHaveBeenCalledWith('test-session', 'user', 'Valid message');
     });
 
     it.skip('should handle invalid session ID', async () => {

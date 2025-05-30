@@ -37,7 +37,7 @@ describe('Session Utility', () => {
   });
 
   describe('formatSessionForAPI', () => {
-    it('should format session with messages for API', () => {
+    it('should format session for API response', () => {
       const session = {
         sessionId: 'test-session-123',
         messages: [
@@ -50,6 +50,7 @@ describe('Session Utility', () => {
 
       const formatted = formatSessionForAPI(session);
 
+      expect(formatted).toHaveProperty('sessionId', 'test-session-123');
       expect(formatted).toHaveProperty('id', 'test-session-123');
       expect(formatted).toHaveProperty('title');
       expect(formatted).toHaveProperty('lastMessage');
@@ -68,6 +69,7 @@ describe('Session Utility', () => {
 
       const formatted = formatSessionForAPI(session);
 
+      expect(formatted.sessionId).toBe('empty-session');
       expect(formatted.id).toBe('empty-session');
       expect(formatted.messageCount).toBe(0);
       expect(formatted.lastMessage).toBeNull();
@@ -148,6 +150,7 @@ describe('Session Utility', () => {
 
       const formatted = formatSessionForAPI(session);
 
+      expect(formatted.sessionId).toBe('minimal-session');
       expect(formatted.id).toBe('minimal-session');
       expect(formatted.messageCount).toBe(1);
       expect(formatted.createdAt).toBeUndefined();
@@ -175,17 +178,8 @@ describe('Session Utility', () => {
       const formatted = formatSessionForAPI(mockSession);
 
       expect(mockSession.toObject).toHaveBeenCalled();
+      expect(formatted.sessionId).toBe('mongoose-session');
       expect(formatted.id).toBe('mongoose-session');
-    });
-  });
-
-  describe('Error Handling', () => {
-    it('should handle null session gracefully', () => {
-      expect(() => formatSessionForAPI(null)).not.toThrow();
-    });
-
-    it('should handle undefined session gracefully', () => {
-      expect(() => formatSessionForAPI(undefined)).not.toThrow();
     });
 
     it('should handle session without sessionId', () => {
@@ -195,7 +189,52 @@ describe('Session Utility', () => {
 
       const formatted = formatSessionForAPI(session);
 
+      expect(formatted.sessionId).toBeUndefined();
       expect(formatted.id).toBeUndefined();
+    });
+
+    it('should return both sessionId and id properties for sidebar compatibility', () => {
+      const session = {
+        sessionId: 'compatibility-test-session',
+        messages: [
+          { role: 'user', content: 'Test message' }
+        ],
+        createdAt: new Date('2023-01-01T00:00:00Z'),
+        updatedAt: new Date('2023-01-01T01:00:00Z')
+      };
+
+      const formatted = formatSessionForAPI(session);
+
+      // Both properties should exist with the same value
+      expect(formatted.sessionId).toBe('compatibility-test-session');
+      expect(formatted.id).toBe('compatibility-test-session');
+      expect(formatted.sessionId).toBe(formatted.id);
+
+      // This ensures the sidebar delete functionality works correctly
+      expect(formatted).toHaveProperty('sessionId');
+      expect(formatted).toHaveProperty('id');
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('should handle null session gracefully', () => {
+      expect(() => formatSessionForAPI(null)).not.toThrow();
+
+      const result = formatSessionForAPI(null);
+      expect(result.sessionId).toBeNull();
+      expect(result.id).toBeNull();
+      expect(result.title).toBe('New Chat');
+      expect(result.messageCount).toBe(0);
+    });
+
+    it('should handle undefined session gracefully', () => {
+      expect(() => formatSessionForAPI(undefined)).not.toThrow();
+
+      const result = formatSessionForAPI(undefined);
+      expect(result.sessionId).toBeNull();
+      expect(result.id).toBeNull();
+      expect(result.title).toBe('New Chat');
+      expect(result.messageCount).toBe(0);
     });
 
     it('should handle malformed messages array', () => {
