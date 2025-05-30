@@ -8,6 +8,12 @@ This application provides a chat interface for AI conversations while eliminatin
 
 The application uses server-side rendering with EJS templates, processes AI responses through local Ollama models, and implements polling-based updates for response handling. All data processing occurs locally without external API calls.
 
+## Screenshot
+
+![No-JS AI Chat Application](screenshot.png)
+
+*The No-JS AI Chat interface showing a live conversation with the AI assistant. The screenshot demonstrates the system prompt functionality, user message input, and a comprehensive AI response about Node.js with formatted markdown content including lists and bullet points - all working without client-side JavaScript.*
+
 ## Table of Contents
 
 - [Overview](#overview)
