@@ -36,7 +36,7 @@ function validateSessionId(sessionId) {
  * @throws {Error} If content is invalid
  */
 function validateMessageContent(content, role) {
-  if (!content || typeof content !== 'string') {
+  if (typeof content !== 'string') {
     throw new Error('Message content is required and must be a string');
   }
 
@@ -76,7 +76,7 @@ async function getOrCreateChatSession(sessionId) {
   try {
     validateSessionId(sessionId);
 
-    let chat = await Chat.findOne({ sessionId }).lean(false);
+    let chat = await Chat.findOne({ sessionId });
 
     if (!chat) {
       chat = new Chat({
@@ -225,24 +225,27 @@ async function getAllChatSessions(limit = MAX_SESSIONS_PER_QUERY, skip = 0) {
 }
 
 /**
- * Delete a chat session with validation
+ * Delete a chat session with optimized query and enhanced error handling
  * @param {string} sessionId - Session identifier
  * @returns {Promise<boolean>} - True if deleted, false if not found
  */
 async function deleteChatSession(sessionId) {
+  const startTime = Date.now();
+
   try {
     validateSessionId(sessionId);
 
     const result = await Chat.deleteOne({ sessionId });
-    const deleted = result.deletedCount > 0;
 
-    if (deleted) {
-      logger.info(`Chat session deleted: ${sessionId}`, 'CHAT_SERVICE');
+    const duration = Date.now() - startTime;
+
+    if (result.deletedCount === 1) {
+      logger.info(`Chat session deleted: ${sessionId} in ${duration}ms`, 'CHAT_SERVICE');
+      return true;
     } else {
-      logger.warn(`Attempted to delete non-existent session: ${sessionId}`, 'CHAT_SERVICE');
+      logger.debug(`Chat session not found for deletion: ${sessionId}`, 'CHAT_SERVICE');
+      return false;
     }
-
-    return deleted;
   } catch (error) {
     logger.error('Error deleting chat session', 'CHAT_SERVICE', error);
     throw error;
@@ -287,67 +290,6 @@ async function addMessageToSession(sessionId, role, content) {
 }
 
 /**
- * Clear all messages from a chat session
- * @param {string} sessionId - Session identifier
- * @returns {Promise<object>} - Updated chat session
- */
-async function clearChatSession(sessionId) {
-  try {
-    validateSessionId(sessionId);
-
-    const chat = await getOrCreateChatSession(sessionId);
-    chat.messages = [];
-    chat.updatedAt = new Date();
-
-    await chat.save();
-
-    logger.info(`Chat session cleared: ${sessionId}`, 'CHAT_SERVICE');
-    return chat;
-  } catch (error) {
-    logger.error('Error clearing chat session', 'CHAT_SERVICE', error);
-    throw error;
-  }
-}
-
-/**
- * Get session statistics with enhanced metrics
- * @param {string} sessionId - Session identifier
- * @returns {Promise<object|null>} - Session statistics or null if not found
- */
-async function getSessionStats(sessionId) {
-  try {
-    validateSessionId(sessionId);
-
-    const chat = await Chat.findOne({ sessionId }).lean();
-
-    if (!chat) {
-      return null;
-    }
-
-    const messages = chat.messages || [];
-    const userMessages = messages.filter(msg => msg.role === 'user').length;
-    const assistantMessages = messages.filter(msg => msg.role === 'assistant').length;
-    const totalCharacters = messages.reduce((sum, msg) => sum + (msg.content?.length || 0), 0);
-    const avgMessageLength = messages.length > 0 ? Math.round(totalCharacters / messages.length) : 0;
-
-    return {
-      sessionId: chat.sessionId,
-      totalMessages: messages.length,
-      userMessages,
-      assistantMessages,
-      totalCharacters,
-      avgMessageLength,
-      systemPrompt: chat.systemPrompt || '',
-      createdAt: chat.createdAt,
-      updatedAt: chat.updatedAt
-    };
-  } catch (error) {
-    logger.error('Error getting session stats', 'CHAT_SERVICE', error);
-    throw error;
-  }
-}
-
-/**
  * Clean up old sessions with improved logging and error handling
  * @param {number} daysOld - Sessions older than this will be deleted
  * @returns {Promise<number>} - Number of sessions deleted
@@ -386,21 +328,6 @@ async function cleanupOldSessions(daysOld = DEFAULT_SESSION_CLEANUP_DAYS) {
   }
 }
 
-/**
- * Get session count for monitoring
- * @returns {Promise<number>} - Total number of sessions
- */
-async function getTotalSessionCount() {
-  try {
-    const count = await Chat.countDocuments({});
-    logger.debug(`Total session count: ${count}`, 'CHAT_SERVICE');
-    return count;
-  } catch (error) {
-    logger.error('Error getting session count', 'CHAT_SERVICE', error);
-    throw error;
-  }
-}
-
 module.exports = {
   generateSessionId,
   getOrCreateChatSession,
@@ -410,10 +337,7 @@ module.exports = {
   getAllChatSessions,
   deleteChatSession,
   addMessageToSession,
-  clearChatSession,
-  getSessionStats,
   cleanupOldSessions,
-  getTotalSessionCount,
 
   // Export validation functions for testing
   validateSessionId,

@@ -91,31 +91,6 @@ function asyncHandler(fn) {
 }
 
 /**
- * Set up Server-Sent Events headers
- * @param {object} res - Express response object
- */
-function setupSSE(res) {
-  res.writeHead(HTTP_STATUS.OK, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Cache-Control'
-  });
-}
-
-/**
- * Send a Server-Sent Event
- * @param {object} res - Express response object
- * @param {string} event - Event name
- * @param {object} data - Event data
- */
-function sendSSEEvent(res, event, data) {
-  res.write(`event: ${event}\n`);
-  res.write(`data: ${JSON.stringify(data)}\n\n`);
-}
-
-/**
  * Log error with context and send appropriate response
  * @param {Error} error - Error object
  * @param {object} res - Express response object
@@ -162,23 +137,6 @@ function createChatTemplateData(sessionId, messages = [], error = null, isLoadin
 }
 
 /**
- * Send validation error response
- * @param {object} res - Express response object
- * @param {string} field - Field that failed validation
- * @param {string} message - Validation error message
- * @param {boolean} isApiRequest - Whether this is an API request
- */
-function sendValidationError(res, field, message, isApiRequest = false) {
-  const errorDetails = { field, message };
-
-  if (isApiRequest) {
-    sendError(res, `Validation failed: ${message}`, HTTP_STATUS.BAD_REQUEST, errorDetails);
-  } else {
-    sendErrorPage(res, message, HTTP_STATUS.BAD_REQUEST);
-  }
-}
-
-/**
  * Check if response headers have been sent
  * @param {object} res - Express response object
  * @returns {boolean} - True if headers sent
@@ -187,32 +145,13 @@ function isResponseSent(res) {
   return res.headersSent;
 }
 
-/**
- * Send rate limit exceeded response
- * @param {object} res - Express response object
- * @param {string} customMessage - Custom rate limit message
- */
-function sendRateLimitError(res, customMessage = ERROR_MESSAGES.RATE_LIMIT_EXCEEDED) {
-  const isApiRequest = res.req.path.startsWith('/api/');
-
-  if (isApiRequest) {
-    sendError(res, customMessage, HTTP_STATUS.TOO_MANY_REQUESTS);
-  } else {
-    sendErrorPage(res, customMessage, HTTP_STATUS.TOO_MANY_REQUESTS);
-  }
-}
-
 module.exports = {
   sendSuccess,
   sendError,
   sendChatError,
   sendErrorPage,
   asyncHandler,
-  setupSSE,
-  sendSSEEvent,
   logErrorAndRespond,
   createChatTemplateData,
-  sendValidationError,
-  isResponseSent,
-  sendRateLimitError
+  isResponseSent
 };

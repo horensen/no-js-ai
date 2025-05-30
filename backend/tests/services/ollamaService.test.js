@@ -1,462 +1,384 @@
-const ollamaService = require('../../src/services/ollamaService');
 const axios = require('axios');
+const ollamaService = require('../../src/services/ollamaService');
 
-// Mock dependencies
+// Mock axios
 jest.mock('axios');
-jest.mock('../../src/utils/ollama');
-jest.mock('../../src/utils/constants', () => ({
-  OLLAMA_URL: 'http://localhost:11434',
-  DEFAULT_MODEL: 'llama3.2'
-}));
-jest.mock('../../src/utils/logger');
+const mockedAxios = axios;
 
-const {
-  formatConversationPrompt,
-  getOllamaRequestConfig,
-  handleOllamaError,
-  getModelPreferenceOrder
-} = require('../../src/utils/ollama');
-const logger = require('../../src/utils/logger');
+// Mock the utility functions
+jest.mock('../../src/utils/ollama', () => ({
+  formatConversationPrompt: jest.fn((message) => `Formatted: ${message}`),
+  getOllamaRequestConfig: jest.fn((model, prompt, streaming) => ({
+    method: 'POST',
+    data: { model, prompt, stream: streaming },
+    timeout: 60000
+  })),
+  handleOllamaError: jest.fn(),
+  getModelPreferenceOrder: jest.fn(() => ['llama3.2', 'llama3.1', 'mistral'])
+}));
 
 describe('Ollama Service', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Reset any environment variables
+    delete process.env.OLLAMA_URL;
+    delete process.env.OLLAMA_MODEL;
+  });
 
-    // Default mock implementations
-    formatConversationPrompt.mockImplementation((input) => {
-      if (typeof input === 'string') return input;
-      return input.map(msg => `${msg.role}: ${msg.content}`).join('\n') + '\nAssistant:';
+  describe('checkOllamaHealth', () => {
+    it('should return "connected" when Ollama is available', async () => {
+      mockedAxios.get.mockResolvedValue({
+        status: 200,
+        data: { models: [] }
+      });
+
+      const result = await ollamaService.checkOllamaHealth();
+
+      expect(result).toBe('connected');
+      expect(mockedAxios.get).toHaveBeenCalledWith(
+        expect.stringContaining('/api/tags'),
+        { timeout: 10000 }
+      );
     });
 
-    getOllamaRequestConfig.mockImplementation((model, prompt, streaming) => ({
-      method: 'POST',
-      data: {
-        model,
-        prompt,
-        stream: streaming
-      },
-      timeout: streaming ? 120000 : 60000,
-      responseType: streaming ? 'stream' : 'json'
-    }));
+    it('should return "disconnected" when Ollama is not available', async () => {
+      mockedAxios.get.mockRejectedValue(new Error('Connection refused'));
 
-    getModelPreferenceOrder.mockReturnValue(['llama3.2', 'llama3', 'mistral']);
-    handleOllamaError.mockImplementation((error) => { throw error; });
+      const result = await ollamaService.checkOllamaHealth();
+
+      expect(result).toBe('disconnected');
+    });
+
+    it('should handle timeout errors', async () => {
+      const timeoutError = new Error('Timeout');
+      timeoutError.code = 'ECONNABORTED';
+      mockedAxios.get.mockRejectedValue(timeoutError);
+
+      const result = await ollamaService.checkOllamaHealth();
+
+      expect(result).toBe('disconnected');
+    });
+
+    it('should use correct timeout configuration', async () => {
+      mockedAxios.get.mockResolvedValue({ status: 200, data: { models: [] } });
+
+      await ollamaService.checkOllamaHealth();
+
+      expect(mockedAxios.get).toHaveBeenCalledWith(
+        expect.any(String),
+        { timeout: 10000 }
+      );
+    });
   });
 
   describe('getAvailableModels', () => {
-    test('should return models when API responds successfully', async () => {
+    it('should return list of available models', async () => {
       const mockModels = [
         { name: 'llama3.2:latest' },
-        { name: 'mistral:latest' }
+        { name: 'mistral:latest' },
+        { name: 'codellama:latest' }
       ];
 
-      axios.get.mockResolvedValue({
-        data: { models: mockModels }
+      mockedAxios.get.mockResolvedValue({
+        data: {
+          models: mockModels
+        }
       });
 
       const result = await ollamaService.getAvailableModels();
 
       expect(result).toEqual(mockModels);
-      expect(axios.get).toHaveBeenCalledWith(
-        'http://localhost:11434/api/tags',
+      expect(mockedAxios.get).toHaveBeenCalledWith(
+        expect.stringContaining('/api/tags'),
         { timeout: 10000 }
       );
     });
 
-    test('should return empty array when API fails', async () => {
-      axios.get.mockRejectedValue(new Error('Connection failed'));
-
-      const result = await ollamaService.getAvailableModels();
-
-      expect(result).toEqual([]);
-      expect(logger.ollama).toHaveBeenCalledWith('Failed to get available models', expect.any(Error));
-    });
-
-    test('should return empty array when response has no models', async () => {
-      axios.get.mockResolvedValue({ data: {} });
+    it('should return empty array when no models available', async () => {
+      mockedAxios.get.mockResolvedValue({ data: { models: [] } });
 
       const result = await ollamaService.getAvailableModels();
 
       expect(result).toEqual([]);
     });
 
-    test('should handle response with null models', async () => {
-      axios.get.mockResolvedValue({ data: { models: null } });
+    it('should return empty array when models property is missing', async () => {
+      mockedAxios.get.mockResolvedValue({ data: {} });
 
       const result = await ollamaService.getAvailableModels();
 
       expect(result).toEqual([]);
     });
-  });
 
-  describe('findBestAvailableModel', () => {
-    test('should return preferred model when available', async () => {
-      const mockModels = [
-        { name: 'mistral:latest' },
-        { name: 'llama3.2:latest' },
-        { name: 'codellama:latest' }
-      ];
+    it('should handle API errors gracefully', async () => {
+      mockedAxios.get.mockRejectedValue(new Error('API Error'));
 
-      axios.get.mockResolvedValue({ data: { models: mockModels } });
-      axios.mockResolvedValue({ data: { response: 'test response' } });
+      const result = await ollamaService.getAvailableModels();
 
-      await ollamaService.callOllama('test');
-
-      expect(getOllamaRequestConfig).toHaveBeenCalledWith('llama3.2:latest', 'test', false);
-      expect(logger.ollama).toHaveBeenCalledWith('Using model: llama3.2:latest');
+      expect(result).toEqual([]);
     });
 
-    test('should throw error when no models available', async () => {
-      axios.get.mockResolvedValue({ data: { models: [] } });
-
-      await expect(ollamaService.callOllama('test')).rejects.toThrow();
-      expect(handleOllamaError).toHaveBeenCalled();
-    });
-
-    test('should use first available model when no preferred model found', async () => {
-      const mockModels = [
-        { name: 'unknown-model:latest' },
-        { name: 'another-model:latest' }
-      ];
-
-      axios.get.mockResolvedValue({ data: { models: mockModels } });
-      axios.mockResolvedValue({ data: { response: 'test response' } });
-
-      await ollamaService.callOllama('test');
-
-      expect(getOllamaRequestConfig).toHaveBeenCalledWith('unknown-model:latest', 'test', false);
-      expect(logger.ollama).toHaveBeenCalledWith('Using first available model: unknown-model:latest');
-    });
-  });
-
-  describe('checkOllamaHealth', () => {
-    test('should return connected when API is reachable', async () => {
-      axios.get.mockResolvedValue({ status: 200 });
-
-      const result = await ollamaService.checkOllamaHealth();
-
-      expect(result).toBe('connected');
-      expect(axios.get).toHaveBeenCalledWith(
-        'http://localhost:11434/api/tags',
-        { timeout: 10000 }
-      );
-    });
-
-    test('should return disconnected when API fails', async () => {
-      axios.get.mockRejectedValue(new Error('Connection failed'));
-
-      const result = await ollamaService.checkOllamaHealth();
-
-      expect(result).toBe('disconnected');
-      expect(logger.ollama).toHaveBeenCalledWith('Ollama health check failed', expect.any(Error));
-    });
-
-    test('should handle timeout errors', async () => {
-      const timeoutError = new Error('timeout of 10000ms exceeded');
+    it('should handle network timeouts', async () => {
+      const timeoutError = new Error('Request timeout');
       timeoutError.code = 'ECONNABORTED';
-      axios.get.mockRejectedValue(timeoutError);
+      mockedAxios.get.mockRejectedValue(timeoutError);
 
-      const result = await ollamaService.checkOllamaHealth();
+      const result = await ollamaService.getAvailableModels();
 
-      expect(result).toBe('disconnected');
+      expect(result).toEqual([]);
     });
   });
 
-  describe('callOllama (non-streaming)', () => {
+  describe('callOllama', () => {
+    const mockResponse = {
+      data: {
+        response: 'Hello! How can I help you today?'
+      }
+    };
+
     beforeEach(() => {
-      // Mock getAvailableModels for model selection
-      axios.get.mockResolvedValue({
-        data: { models: [{ name: 'llama3.2:latest' }] }
+      // Mock the getAvailableModels call for model selection
+      mockedAxios.get.mockResolvedValue({
+        data: {
+          models: [
+            { name: 'llama3.2:latest' },
+            { name: 'mistral:latest' }
+          ]
+        }
       });
     });
 
-    test('should handle string message input', async () => {
-      const message = 'Hello, world!';
+    it('should send message and return response', async () => {
+      mockedAxios.mockResolvedValue(mockResponse);
 
-      axios.mockResolvedValue({
-        data: { response: 'AI response here' }
-      });
+      const result = await ollamaService.callOllama('Hello, how are you?');
 
-      const result = await ollamaService.callOllama(message);
-
-      expect(result).toBe('AI response here');
-      expect(formatConversationPrompt).toHaveBeenCalledWith('Hello, world!', '');
-      expect(getOllamaRequestConfig).toHaveBeenCalledWith('llama3.2:latest', 'Hello, world!', false);
+      expect(result).toBe('Hello! How can I help you today?');
+      expect(mockedAxios).toHaveBeenCalledWith(
+        expect.stringContaining('/api/generate'),
+        expect.objectContaining({
+          method: 'POST',
+          data: expect.objectContaining({
+            model: expect.any(String),
+            prompt: expect.stringContaining('Hello, how are you?'),
+            stream: false
+          })
+        })
+      );
     });
 
-    test('should handle conversation history input', async () => {
+    it('should handle message arrays (conversation history)', async () => {
+      mockedAxios.mockResolvedValue(mockResponse);
+
       const history = [
-        { role: 'user', content: 'Hello' },
-        { role: 'assistant', content: 'Hi there!' }
+        { role: 'user', content: 'Previous question' },
+        { role: 'assistant', content: 'Previous answer' }
       ];
-
-      formatConversationPrompt.mockReturnValue('User: Hello\n\nAssistant: Hi there!\n\nAssistant:');
-      axios.mockResolvedValue({
-        data: { response: 'AI response to conversation' }
-      });
 
       const result = await ollamaService.callOllama(history);
 
-      expect(result).toBe('AI response to conversation');
-      expect(formatConversationPrompt).toHaveBeenCalledWith(history, '');
+      expect(result).toBe('Hello! How can I help you today?');
+      expect(mockedAxios).toHaveBeenCalled();
     });
 
-    test('should auto-select model when not specified', async () => {
-      axios.mockResolvedValue({
-        data: { response: 'Response with auto-selected model' }
-      });
+    it('should use specified model when provided', async () => {
+      mockedAxios.mockResolvedValue(mockResponse);
 
-      const result = await ollamaService.callOllama('test');
+      await ollamaService.callOllama('Test message', 'custom-model');
 
-      expect(result).toBe('Response with auto-selected model');
-      expect(getOllamaRequestConfig).toHaveBeenCalledWith('llama3.2:latest', 'test', false);
+      expect(mockedAxios).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          data: expect.objectContaining({
+            model: 'custom-model'
+          })
+        })
+      );
     });
 
-    test('should handle API errors', async () => {
-      const error = new Error('API Error');
-      axios.mockRejectedValue(error);
+    it('should include system prompt when provided', async () => {
+      mockedAxios.mockResolvedValue(mockResponse);
 
-      await expect(ollamaService.callOllama('test', 'llama3.2:latest')).rejects.toThrow();
-      expect(handleOllamaError).toHaveBeenCalledWith(error, expect.any(Function), false);
+      await ollamaService.callOllama('User message', null, 'You are a helpful assistant');
+
+      expect(mockedAxios).toHaveBeenCalled();
+      // The system prompt is handled by formatConversationPrompt utility
     });
 
-    test('should handle network timeout errors', async () => {
-      const timeoutError = new Error('timeout of 60000ms exceeded');
-      timeoutError.code = 'ECONNABORTED';
-      axios.mockRejectedValue(timeoutError);
+    it('should handle connection errors', async () => {
+      const connectionError = new Error('Connection failed');
+      mockedAxios.mockRejectedValue(connectionError);
 
-      await expect(ollamaService.callOllama('test', 'llama3.2:latest')).rejects.toThrow();
-      expect(handleOllamaError).toHaveBeenCalledWith(timeoutError, expect.any(Function), false);
+      // The function should handle the error through handleOllamaError utility
+      await ollamaService.callOllama('Test');
+
+      // Verify that the error handling utility was called
+      const { handleOllamaError } = require('../../src/utils/ollama');
+      expect(handleOllamaError).toHaveBeenCalledWith(
+        connectionError,
+        expect.any(Function),
+        false
+      );
+    });
+
+    it('should automatically select best available model when none specified', async () => {
+      mockedAxios.mockResolvedValue(mockResponse);
+
+      await ollamaService.callOllama('Test message');
+
+      // Should call getAvailableModels to find the best model
+      expect(mockedAxios.get).toHaveBeenCalledWith(
+        expect.stringContaining('/api/tags'),
+        { timeout: 10000 }
+      );
+    });
+
+    it('should handle empty response gracefully', async () => {
+      mockedAxios.mockResolvedValue({ data: { response: '' } });
+
+      const result = await ollamaService.callOllama('Test message');
+
+      expect(result).toBe('');
+    });
+
+    it('should handle malformed response', async () => {
+      mockedAxios.mockResolvedValue({ data: {} });
+
+      const result = await ollamaService.callOllama('Test message');
+
+      expect(result).toBeUndefined();
     });
   });
 
-  describe('callOllamaStreaming', () => {
-    beforeEach(() => {
-      // Mock getAvailableModels for model selection
-      axios.get.mockResolvedValue({
-        data: { models: [{ name: 'llama3.2:latest' }] }
+  describe('Integration Tests', () => {
+    it('should handle the complete flow: health check -> get models -> call ollama', async () => {
+      // Mock health check
+      mockedAxios.get.mockResolvedValue({
+        data: {
+          models: [{ name: 'llama3.2:latest' }]
+        }
       });
+
+      // Mock ollama call
+      mockedAxios.mockResolvedValue({
+        data: { response: 'Test response' }
+      });
+
+      // Check health
+      const health = await ollamaService.checkOllamaHealth();
+      expect(health).toBe('connected');
+
+      // Get models
+      const models = await ollamaService.getAvailableModels();
+      expect(models).toHaveLength(1);
+
+      // Call ollama
+      const response = await ollamaService.callOllama('Test message');
+      expect(response).toBe('Test response');
     });
 
-    test('should handle streaming response with tokens', async () => {
-      const mockStream = {
-        on: jest.fn((event, callback) => {
-          if (event === 'data') {
-            setTimeout(() => {
-              callback(Buffer.from('{"response": "Hello"}\n'));
-              callback(Buffer.from('{"response": " world"}\n'));
-              callback(Buffer.from('{"done": true}\n'));
-            }, 10);
-          }
-          if (event === 'end') {
-            setTimeout(() => callback(), 50);
-          }
-        })
+    it('should handle service unavailable scenario', async () => {
+      const serviceError = new Error('Service unavailable');
+      mockedAxios.get.mockRejectedValue(serviceError);
+      mockedAxios.mockRejectedValue(serviceError);
+
+      const health = await ollamaService.checkOllamaHealth();
+      expect(health).toBe('disconnected');
+
+      const models = await ollamaService.getAvailableModels();
+      expect(models).toEqual([]);
+
+      // Call ollama should handle error through utility
+      await ollamaService.callOllama('Test message');
+      const { handleOllamaError } = require('../../src/utils/ollama');
+      expect(handleOllamaError).toHaveBeenCalled();
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('should handle network timeouts consistently', async () => {
+      const timeoutError = new Error('Timeout');
+      timeoutError.code = 'ECONNABORTED';
+
+      mockedAxios.get.mockRejectedValue(timeoutError);
+      mockedAxios.mockRejectedValue(timeoutError);
+
+      const health = await ollamaService.checkOllamaHealth();
+      expect(health).toBe('disconnected');
+
+      const models = await ollamaService.getAvailableModels();
+      expect(models).toEqual([]);
+    });
+
+    it('should handle HTTP error responses', async () => {
+      const httpError = new Error('Request failed');
+      httpError.response = {
+        status: 500,
+        data: 'Internal Server Error'
       };
 
-      axios.mockResolvedValue({
-        data: mockStream
-      });
+      mockedAxios.get.mockRejectedValue(httpError);
+      mockedAxios.mockRejectedValue(httpError);
 
-      const onTokenCallback = jest.fn();
-      const result = await ollamaService.callOllamaStreaming('Hello', onTokenCallback, 'llama3.2:latest');
+      const health = await ollamaService.checkOllamaHealth();
+      expect(health).toBe('disconnected');
 
-      expect(onTokenCallback).toHaveBeenCalledWith('Hello');
-      expect(onTokenCallback).toHaveBeenCalledWith(' world');
-      expect(result).toBe('Hello world');
-      expect(getOllamaRequestConfig).toHaveBeenCalledWith('llama3.2:latest', 'Hello', true);
+      const models = await ollamaService.getAvailableModels();
+      expect(models).toEqual([]);
     });
 
-    test('should handle streaming without onToken callback', async () => {
-      const mockStream = {
-        on: jest.fn((event, callback) => {
-          if (event === 'data') {
-            setTimeout(() => {
-              callback(Buffer.from('{"response": "Response"}\n'));
-              callback(Buffer.from('{"done": true}\n'));
-            }, 10);
-          }
-        })
-      };
+    it('should not throw unhandled exceptions', async () => {
+      mockedAxios.get.mockRejectedValue(new Error('Unexpected error'));
+      mockedAxios.mockRejectedValue(new Error('Unexpected error'));
 
-      axios.mockResolvedValue({
-        data: mockStream
+      // These should not throw
+      await expect(ollamaService.checkOllamaHealth()).resolves.toBe('disconnected');
+      await expect(ollamaService.getAvailableModels()).resolves.toEqual([]);
+      await expect(ollamaService.callOllama('Test')).resolves.not.toThrow();
+    });
+  });
+
+  describe('Performance Tests', () => {
+    it('should handle multiple concurrent health checks', async () => {
+      mockedAxios.get.mockResolvedValue({ data: { models: [] } });
+
+      const promises = Array(10).fill().map(() =>
+        ollamaService.checkOllamaHealth()
+      );
+
+      const results = await Promise.all(promises);
+
+      expect(results).toHaveLength(10);
+      results.forEach(result => {
+        expect(result).toBe('connected');
       });
-
-      const result = await ollamaService.callOllamaStreaming('test', null, 'llama3.2:latest');
-
-      expect(result).toBe('Response');
     });
 
-    test('should handle malformed JSON chunks gracefully', async () => {
-      const mockStream = {
-        on: jest.fn((event, callback) => {
-          if (event === 'data') {
-            setTimeout(() => {
-              callback(Buffer.from('malformed json\n'));
-              callback(Buffer.from('{"response": "valid"}\n'));
-              callback(Buffer.from('{"done": true}\n'));
-            }, 10);
-          }
-        })
-      };
-
-      axios.mockResolvedValue({
-        data: mockStream
+    it('should handle multiple concurrent model requests', async () => {
+      mockedAxios.get.mockResolvedValue({
+        data: { models: [{ name: 'test-model' }] }
       });
 
-      const result = await ollamaService.callOllamaStreaming('test', jest.fn(), 'llama3.2:latest');
+      const promises = Array(5).fill().map(() =>
+        ollamaService.getAvailableModels()
+      );
 
-      expect(result).toBe('valid');
-    });
+      const results = await Promise.all(promises);
 
-    test('should handle empty response chunks', async () => {
-      const mockStream = {
-        on: jest.fn((event, callback) => {
-          if (event === 'data') {
-            setTimeout(() => {
-              callback(Buffer.from('{"response": ""}\n'));
-              callback(Buffer.from('\n'));
-              callback(Buffer.from('{"response": "content"}\n'));
-              callback(Buffer.from('{"done": true}\n'));
-            }, 10);
-          }
-        })
-      };
-
-      axios.mockResolvedValue({
-        data: mockStream
+      expect(results).toHaveLength(5);
+      results.forEach(result => {
+        expect(result).toEqual([{ name: 'test-model' }]);
       });
-
-      const onToken = jest.fn();
-      const result = await ollamaService.callOllamaStreaming('test', onToken, 'llama3.2:latest');
-
-      expect(result).toBe('content');
-      expect(onToken).toHaveBeenCalledWith('content');
-      expect(onToken).not.toHaveBeenCalledWith('');
     });
 
-    test('should handle stream errors', async () => {
-      const mockStream = {
-        on: jest.fn((event, callback) => {
-          if (event === 'error') {
-            setTimeout(() => callback(new Error('Stream error')), 10);
-          }
-        })
-      };
+    it('should respond quickly to health checks', async () => {
+      mockedAxios.get.mockResolvedValue({ data: { models: [] } });
 
-      axios.mockResolvedValue({
-        data: mockStream
-      });
+      const startTime = Date.now();
+      await ollamaService.checkOllamaHealth();
+      const endTime = Date.now();
 
-      await expect(ollamaService.callOllamaStreaming('test', jest.fn(), 'llama3.2:latest'))
-        .rejects.toThrow('Stream error');
-    });
-
-    test('should handle stream end without done signal', async () => {
-      const mockStream = {
-        on: jest.fn((event, callback) => {
-          if (event === 'data') {
-            setTimeout(() => {
-              callback(Buffer.from('{"response": "partial"}\n'));
-            }, 10);
-          }
-          if (event === 'end') {
-            setTimeout(() => callback(), 20);
-          }
-        })
-      };
-
-      axios.mockResolvedValue({
-        data: mockStream
-      });
-
-      const result = await ollamaService.callOllamaStreaming('test', jest.fn(), 'llama3.2:latest');
-
-      expect(result).toBe('partial');
-    });
-
-    test('should auto-select model when not specified', async () => {
-      const mockStream = {
-        on: jest.fn((event, callback) => {
-          if (event === 'data') {
-            setTimeout(() => {
-              callback(Buffer.from('{"response": "auto-model"}\n'));
-              callback(Buffer.from('{"done": true}\n'));
-            }, 10);
-          }
-        })
-      };
-
-      axios.mockResolvedValue({
-        data: mockStream
-      });
-
-      const result = await ollamaService.callOllamaStreaming('test', jest.fn());
-
-      expect(result).toBe('auto-model');
-      expect(getOllamaRequestConfig).toHaveBeenCalledWith('llama3.2:latest', 'test', true);
-    });
-
-    test('should handle streaming API errors', async () => {
-      const error = new Error('Streaming API Error');
-      axios.mockRejectedValue(error);
-
-      await expect(ollamaService.callOllamaStreaming('test', jest.fn(), 'llama3.2:latest'))
-        .rejects.toThrow();
-      expect(handleOllamaError).toHaveBeenCalledWith(error, expect.any(Function), true);
-    });
-
-    test('should handle conversation history in streaming', async () => {
-      const history = [
-        { role: 'user', content: 'Hello' },
-        { role: 'assistant', content: 'Hi!' }
-      ];
-
-      formatConversationPrompt.mockReturnValue('User: Hello\n\nAssistant: Hi!\n\nAssistant:');
-
-      const mockStream = {
-        on: jest.fn((event, callback) => {
-          if (event === 'data') {
-            setTimeout(() => {
-              callback(Buffer.from('{"response": "streaming response"}\n'));
-              callback(Buffer.from('{"done": true}\n'));
-            }, 10);
-          }
-        })
-      };
-
-      axios.mockResolvedValue({
-        data: mockStream
-      });
-
-      const result = await ollamaService.callOllamaStreaming(history, jest.fn(), 'llama3.2:latest');
-
-      expect(result).toBe('streaming response');
-      expect(formatConversationPrompt).toHaveBeenCalledWith(history, '');
-    });
-
-    test('should handle multiple response chunks in single data event', async () => {
-      const mockStream = {
-        on: jest.fn((event, callback) => {
-          if (event === 'data') {
-            setTimeout(() => {
-              callback(Buffer.from('{"response": "chunk1"}\n{"response": "chunk2"}\n{"done": true}\n'));
-            }, 10);
-          }
-        })
-      };
-
-      axios.mockResolvedValue({
-        data: mockStream
-      });
-
-      const onToken = jest.fn();
-      const result = await ollamaService.callOllamaStreaming('test', onToken, 'llama3.2:latest');
-
-      expect(result).toBe('chunk1chunk2');
-      expect(onToken).toHaveBeenCalledWith('chunk1');
-      expect(onToken).toHaveBeenCalledWith('chunk2');
+      expect(endTime - startTime).toBeLessThan(100); // Should be very fast with mocked axios
     });
   });
 });

@@ -1,97 +1,114 @@
-const {
-  securityMiddleware,
-  apiRateLimitMiddleware,
-  chatRateLimitMiddleware,
-  streamingRateLimitMiddleware,
-  inputValidationMiddleware,
-  sessionValidationMiddleware,
-  csrfProtectionMiddleware,
-  streamingSecurityMiddleware,
-  commonSecurityHeaders
-} = require('../../src/middleware/security');
+const request = require('supertest');
+const express = require('express');
+const { commonSecurityHeaders } = require('../../src/middleware/security');
 
 describe('Security Middleware', () => {
-  let mockReq;
-  let mockRes;
-  let mockNext;
+  let app;
 
   beforeEach(() => {
-    mockReq = {
-      path: '/test',
-      method: 'GET',
-      headers: {}
-    };
-    mockRes = {
-      setHeader: jest.fn(),
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn(),
-      render: jest.fn(),
-      removeHeader: jest.fn()
-    };
-    mockNext = jest.fn();
+    app = express();
+    app.use(commonSecurityHeaders);
+
+    // Add a test route
+    app.get('/test', (req, res) => {
+      res.json({ message: 'success' });
+    });
   });
 
-  describe('securityMiddleware', () => {
-    test('should be defined', () => {
-      expect(securityMiddleware).toBeDefined();
-      expect(typeof securityMiddleware).toBe('function');
+  describe('Security Headers', () => {
+    it('should set X-Content-Type-Options header', async () => {
+      const response = await request(app)
+        .get('/test')
+        .expect(200);
+
+      expect(response.headers['x-content-type-options']).toBe('nosniff');
     });
 
-    test('should call next for valid request', (done) => {
-      securityMiddleware(mockReq, mockRes, (err) => {
-        if (err) {
-          done(err);
-        } else {
-          done();
-        }
+    it('should set X-Frame-Options header', async () => {
+      const response = await request(app)
+        .get('/test')
+        .expect(200);
+
+      expect(response.headers['x-frame-options']).toBe('DENY');
+    });
+
+    it('should set X-XSS-Protection header', async () => {
+      const response = await request(app)
+        .get('/test')
+        .expect(200);
+
+      expect(response.headers['x-xss-protection']).toBe('1; mode=block');
+    });
+
+    it('should set Referrer-Policy header', async () => {
+      const response = await request(app)
+        .get('/test')
+        .expect(200);
+
+      expect(response.headers['referrer-policy']).toBe('strict-origin-when-cross-origin');
+    });
+
+    it('should set Content-Security-Policy header', async () => {
+      const response = await request(app)
+        .get('/test')
+        .expect(200);
+
+      expect(response.headers['content-security-policy']).toBeDefined();
+      expect(response.headers['content-security-policy']).toContain("default-src 'self'");
+    });
+  });
+
+  describe('Security Functionality', () => {
+    it('should allow normal requests to pass through', async () => {
+      const response = await request(app)
+        .get('/test')
+        .expect(200);
+
+      expect(response.body).toEqual({ message: 'success' });
+    });
+
+    it('should work with POST requests', async () => {
+      app.post('/test-post', (req, res) => {
+        res.json({ method: 'POST' });
       });
+
+      const response = await request(app)
+        .post('/test-post')
+        .expect(200);
+
+      expect(response.body).toEqual({ method: 'POST' });
+      expect(response.headers['x-content-type-options']).toBe('nosniff');
+    });
+
+    it('should work with different HTTP methods', async () => {
+      app.put('/test-put', (req, res) => {
+        res.json({ method: 'PUT' });
+      });
+
+      const response = await request(app)
+        .put('/test-put')
+        .expect(200);
+
+      expect(response.headers['x-frame-options']).toBe('DENY');
     });
   });
 
-  describe('streamingSecurityMiddleware', () => {
-    test('should be defined', () => {
-      expect(streamingSecurityMiddleware).toBeDefined();
-      expect(typeof streamingSecurityMiddleware).toBe('function');
-    });
+  describe('Error Handling', () => {
+    it('should maintain security headers even when errors occur', async () => {
+      app.get('/error', (req, res) => {
+        throw new Error('Test error');
+      });
 
-    test('should set security headers', () => {
-      streamingSecurityMiddleware(mockReq, mockRes, mockNext);
+      app.use((err, req, res, next) => {
+        res.status(500).json({ error: 'Internal error' });
+      });
 
-      expect(mockRes.setHeader).toHaveBeenCalledWith('X-Content-Type-Options', 'nosniff');
-      expect(mockRes.setHeader).toHaveBeenCalledWith('X-Frame-Options', 'DENY');
-      expect(mockRes.setHeader).toHaveBeenCalledWith('X-XSS-Protection', '1; mode=block');
-      expect(mockNext).toHaveBeenCalled();
-    });
-  });
+      const response = await request(app)
+        .get('/error')
+        .expect(500);
 
-  describe('commonSecurityHeaders', () => {
-    test('should be defined', () => {
-      expect(commonSecurityHeaders).toBeDefined();
-      expect(typeof commonSecurityHeaders).toBe('function');
-    });
-
-    test('should set common headers', () => {
-      commonSecurityHeaders(mockReq, mockRes, mockNext);
-
-      expect(mockRes.setHeader).toHaveBeenCalledWith('X-Powered-By', 'No-JS AI Chat');
-      expect(mockRes.setHeader).toHaveBeenCalledWith('Server', 'Secure-Chat/1.0');
-      expect(mockNext).toHaveBeenCalled();
-    });
-  });
-
-  describe('rate limiting middleware', () => {
-    test('should export rate limiting functions', () => {
-      expect(apiRateLimitMiddleware).toBeDefined();
-      expect(chatRateLimitMiddleware).toBeDefined();
-      expect(streamingRateLimitMiddleware).toBeDefined();
-    });
-  });
-
-  describe('validation middleware', () => {
-    test('should export validation functions', () => {
-      expect(inputValidationMiddleware).toBeDefined();
-      expect(sessionValidationMiddleware).toBeDefined();
-      expect(csrfProtectionMiddleware).toBeDefined();
+      expect(response.headers['x-content-type-options']).toBe('nosniff');
+      expect(response.headers['x-frame-options']).toBe('DENY');
     });
   });
 });

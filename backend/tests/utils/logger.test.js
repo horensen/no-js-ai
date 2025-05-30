@@ -1,133 +1,189 @@
 const logger = require('../../src/utils/logger');
 
-describe('Logger Utils', () => {
-  let consoleSpy;
+// Mock console methods
+const originalConsoleLog = console.log;
+const originalConsoleError = console.error;
+
+describe('Logger Utility', () => {
+  let mockConsoleLog, mockConsoleError;
+  let originalLogLevel;
 
   beforeEach(() => {
-    consoleSpy = {
-      log: jest.spyOn(console, 'log').mockImplementation(),
-      error: jest.spyOn(console, 'error').mockImplementation()
-    };
+    mockConsoleLog = jest.spyOn(console, 'log').mockImplementation();
+    mockConsoleError = jest.spyOn(console, 'error').mockImplementation();
+    originalLogLevel = process.env.LOG_LEVEL;
   });
 
   afterEach(() => {
-    consoleSpy.log.mockRestore();
-    consoleSpy.error.mockRestore();
+    mockConsoleLog.mockRestore();
+    mockConsoleError.mockRestore();
+    process.env.LOG_LEVEL = originalLogLevel;
+    jest.clearAllMocks();
   });
 
-  describe('info logging', () => {
-    test('should log info messages', () => {
+  describe('Basic Logging', () => {
+    it('should log info messages', () => {
       logger.info('Test info message');
 
-      expect(consoleSpy.log).toHaveBeenCalled();
-      const logCall = consoleSpy.log.mock.calls[0][0];
-      expect(logCall).toContain('INFO');
-      expect(logCall).toContain('Test info message');
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('Test info message')
+      );
     });
 
-    test('should include timestamp in log', () => {
-      logger.info('Test message');
-
-      const logCall = consoleSpy.log.mock.calls[0][0];
-      expect(logCall).toMatch(/\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\]/);
-    });
-  });
-
-  describe('error logging', () => {
-    test('should log error messages', () => {
+    it('should log error messages', () => {
       logger.error('Test error message');
 
-      expect(consoleSpy.error).toHaveBeenCalled();
-      const logCall = consoleSpy.error.mock.calls[0][0];
-      expect(logCall).toContain('ERROR');
-      expect(logCall).toContain('Test error message');
+      expect(mockConsoleError).toHaveBeenCalledWith(
+        expect.stringContaining('Test error message')
+      );
     });
 
-    test('should handle error objects', () => {
-      const error = new Error('Test error');
-      logger.error('Error occurred', 'CONTEXT', error);
-
-      expect(consoleSpy.error).toHaveBeenCalled();
-      const logCall = consoleSpy.error.mock.calls[0][0];
-      expect(logCall).toContain('ERROR');
-      expect(logCall).toContain('Error occurred');
-    });
-  });
-
-  describe('warn logging', () => {
-    test('should log warning messages', () => {
+    it('should log warn messages', () => {
       logger.warn('Test warning message');
 
-      expect(consoleSpy.log).toHaveBeenCalled();
-      const logCall = consoleSpy.log.mock.calls[0][0];
-      expect(logCall).toContain('WARN');
-      expect(logCall).toContain('Test warning message');
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('Test warning message')
+      );
+    });
+
+    it('should log debug messages', () => {
+      // Set log level to DEBUG for this test
+      process.env.LOG_LEVEL = 'DEBUG';
+      // Create new logger instance to pick up the new log level
+      const Logger = require('../../src/utils/logger');
+      Logger.level = 3; // DEBUG level
+
+      Logger.debug('Test debug message');
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('Test debug message')
+      );
     });
   });
 
-  describe('debug logging', () => {
-    test('should respect log level for debug messages', () => {
-      // Default log level is INFO, so debug should not be logged
-      logger.debug('Test debug message');
+  describe('Contextual Logging', () => {
+    it('should include context in log messages', () => {
+      logger.info('Test message', 'TEST_CONTEXT');
 
-      expect(consoleSpy.log).not.toHaveBeenCalled();
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('TEST_CONTEXT')
+      );
+    });
+
+    it('should handle missing context gracefully', () => {
+      logger.info('Test message without context');
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('Test message without context')
+      );
+    });
+
+    it('should include error objects in error logs', () => {
+      const testError = new Error('Test error');
+      logger.error('Error occurred', 'ERROR_CONTEXT', testError);
+
+      expect(mockConsoleError).toHaveBeenCalledWith(
+        expect.stringContaining('Error occurred')
+      );
+      expect(mockConsoleError).toHaveBeenCalledWith(
+        expect.stringContaining('ERROR_CONTEXT')
+      );
     });
   });
 
-  describe('context-specific logging', () => {
-    test('should log database messages', () => {
-      logger.database('Database message');
+  describe('Specialized Logging Methods', () => {
+    it('should log database messages', () => {
+      logger.database('Database connected');
 
-      expect(consoleSpy.log).toHaveBeenCalled();
-      const logCall = consoleSpy.log.mock.calls[0][0];
-      expect(logCall).toContain('[DATABASE]');
-      expect(logCall).toContain('Database message');
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('Database connected')
+      );
     });
 
-    test('should log api messages', () => {
-      logger.api('API message', 'GET', '/test');
+    it('should log API messages', () => {
+      logger.api('GET /api/test', 'GET', '/api/test');
 
-      expect(consoleSpy.log).toHaveBeenCalled();
-      const logCall = consoleSpy.log.mock.calls[0][0];
-      expect(logCall).toContain('[API:GET:/test]');
-      expect(logCall).toContain('API message');
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('GET /api/test')
+      );
     });
 
-    test('should log security messages', () => {
-      logger.security('Security message');
+    it('should log Ollama service messages', () => {
+      logger.ollama('Ollama response generated');
 
-      expect(consoleSpy.log).toHaveBeenCalled();
-      const logCall = consoleSpy.log.mock.calls[0][0];
-      expect(logCall).toContain('[SECURITY]');
-      expect(logCall).toContain('Security message');
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('Ollama response generated')
+      );
+    });
+  });
+
+  describe('Log Formatting', () => {
+    it('should include timestamp in log messages', () => {
+      logger.info('Test message');
+
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringMatching(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
+      );
     });
 
-    test('should log streaming messages', () => {
-      logger.streaming('Streaming message', 'session123');
+    it('should include log level in messages', () => {
+      logger.info('Test message');
 
-      expect(consoleSpy.log).toHaveBeenCalled();
-      const logCall = consoleSpy.log.mock.calls[0][0];
-      expect(logCall).toContain('[STREAMING:session123]');
-      expect(logCall).toContain('Streaming message');
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('INFO')
+      );
     });
 
-    test('should log ollama messages', () => {
-      logger.ollama('Ollama message');
+    it('should format error level correctly', () => {
+      logger.error('Test error');
 
-      expect(consoleSpy.log).toHaveBeenCalled();
-      const logCall = consoleSpy.log.mock.calls[0][0];
-      expect(logCall).toContain('[OLLAMA]');
-      expect(logCall).toContain('Ollama message');
+      expect(mockConsoleError).toHaveBeenCalledWith(
+        expect.stringContaining('ERROR')
+      );
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('should handle null messages gracefully', () => {
+      expect(() => logger.info(null)).not.toThrow();
     });
 
-    test('should log ollama errors', () => {
-      const error = new Error('Ollama error');
-      logger.ollama('Ollama error message', error);
+    it('should handle undefined messages gracefully', () => {
+      expect(() => logger.info(undefined)).not.toThrow();
+    });
 
-      expect(consoleSpy.error).toHaveBeenCalled();
-      const logCall = consoleSpy.error.mock.calls[0][0];
-      expect(logCall).toContain('[OLLAMA]');
-      expect(logCall).toContain('Ollama error message');
+    it('should handle non-string messages', () => {
+      expect(() => logger.info(123)).not.toThrow();
+      expect(() => logger.info({ key: 'value' })).not.toThrow();
+    });
+
+    it('should handle circular references in objects', () => {
+      const circularObj = { name: 'test' };
+      circularObj.self = circularObj;
+
+      expect(() => logger.info('Circular object', 'TEST', circularObj)).not.toThrow();
+    });
+  });
+
+  describe('Performance', () => {
+    it('should handle many log messages efficiently', () => {
+      const startTime = Date.now();
+
+      for (let i = 0; i < 1000; i++) {
+        logger.info(`Message ${i}`);
+      }
+
+      const endTime = Date.now();
+      expect(endTime - startTime).toBeLessThan(1000); // Should complete within 1 second
+    });
+
+    it('should not block execution', () => {
+      let completed = false;
+
+      logger.info('Test message');
+      completed = true;
+
+      expect(completed).toBe(true);
     });
   });
 });

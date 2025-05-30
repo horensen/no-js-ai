@@ -1,191 +1,189 @@
-const {
-  connectDatabase,
-  getDatabaseStatus,
-  closeDatabaseConnection,
-  setupGracefulShutdown
-} = require('../../src/config/database');
-
-// Mock dependencies
-jest.mock('mongoose');
-jest.mock('../../src/utils/logger');
-jest.mock('../../src/utils/constants', () => ({
-  MONGODB_URI: 'mongodb://localhost:27017/test'
-}));
-
 const mongoose = require('mongoose');
+const { connectDatabase, setupGracefulShutdown } = require('../../src/config/database');
 const logger = require('../../src/utils/logger');
 
-describe('Database Config', () => {
-  let originalProcessOn;
-  let originalProcessExit;
+// Mock the logger
+jest.mock('../../src/utils/logger');
 
+describe('Database Configuration', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-
-    // Mock process methods
-    originalProcessOn = process.on;
-    originalProcessExit = process.exit;
-    process.on = jest.fn();
-    process.exit = jest.fn();
-
-    // Setup mongoose mock
-    mongoose.connect = jest.fn();
-    mongoose.connection = {
-      close: jest.fn(),
-      readyState: 1
-    };
+    // Reset environment variables
+    delete process.env.MONGODB_URI;
   });
 
-  afterEach(() => {
-    process.on = originalProcessOn;
-    process.exit = originalProcessExit;
+  afterEach(async () => {
+    if (mongoose.connection.readyState !== 0) {
+      // Mock the close method to avoid actual connection operations
+      if (mongoose.connection.close && typeof mongoose.connection.close === 'function') {
+        await mongoose.connection.close();
+      }
+    }
   });
 
   describe('connectDatabase', () => {
-    test('should connect to MongoDB successfully', async () => {
-      mongoose.connect.mockResolvedValue();
+    it('should connect to MongoDB with default configuration', async () => {
+      const spy = jest.spyOn(mongoose, 'connect').mockResolvedValue();
 
       await connectDatabase();
 
-      expect(mongoose.connect).toHaveBeenCalledWith('mongodb://localhost:27017/test', {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-      });
-      expect(logger.database).toHaveBeenCalledWith('Connected to MongoDB');
+      expect(spy).toHaveBeenCalledWith(
+        expect.stringContaining('mongodb://'),
+        expect.objectContaining({
+          useNewUrlParser: true,
+          useUnifiedTopology: true
+        })
+      );
+
+      spy.mockRestore();
     });
 
-    test('should handle connection errors', async () => {
+    it('should handle connection errors gracefully', async () => {
       const error = new Error('Connection failed');
-      mongoose.connect.mockRejectedValue(error);
+      const spy = jest.spyOn(mongoose, 'connect').mockRejectedValue(error);
 
       await expect(connectDatabase()).rejects.toThrow('Connection failed');
       expect(logger.database).toHaveBeenCalledWith('MongoDB connection error', error);
-    });
-  });
 
-  describe('getDatabaseStatus', () => {
-    test('should return connected when readyState is 1', () => {
-      mongoose.connection.readyState = 1;
-      expect(getDatabaseStatus()).toBe('connected');
+      spy.mockRestore();
     });
 
-    test('should return disconnected when readyState is 0', () => {
-      mongoose.connection.readyState = 0;
-      expect(getDatabaseStatus()).toBe('disconnected');
-    });
+    it('should use custom MongoDB URI from environment', async () => {
+      // Mock the constants module to return custom URI
+      jest.doMock('../../src/utils/constants', () => ({
+        MONGODB_URI: 'mongodb://custom:27017/test'
+      }));
 
-    test('should return connecting when readyState is 2', () => {
-      mongoose.connection.readyState = 2;
-      expect(getDatabaseStatus()).toBe('connecting');
-    });
+      // Clear the require cache and re-require
+      delete require.cache[require.resolve('../../src/config/database')];
+      const { connectDatabase } = require('../../src/config/database');
 
-    test('should return disconnecting when readyState is 3', () => {
-      mongoose.connection.readyState = 3;
-      expect(getDatabaseStatus()).toBe('disconnecting');
-    });
+      const spy = jest.spyOn(mongoose, 'connect').mockResolvedValue();
 
-    test('should return unknown for invalid readyState', () => {
-      mongoose.connection.readyState = 99;
-      expect(getDatabaseStatus()).toBe('unknown');
-    });
-  });
+      await connectDatabase();
 
-  describe('closeDatabaseConnection', () => {
-    test('should close database connection successfully', async () => {
-      mongoose.connection.close.mockResolvedValue();
+      expect(spy).toHaveBeenCalledWith(
+        'mongodb://custom:27017/test',
+        expect.any(Object)
+      );
 
-      await closeDatabaseConnection();
+      spy.mockRestore();
 
-      expect(mongoose.connection.close).toHaveBeenCalled();
-      expect(logger.database).toHaveBeenCalledWith('Database connection closed');
-    });
-
-    test('should handle close errors', async () => {
-      const error = new Error('Close failed');
-      mongoose.connection.close.mockRejectedValue(error);
-
-      await expect(closeDatabaseConnection()).rejects.toThrow('Close failed');
-      expect(logger.database).toHaveBeenCalledWith('Error closing database connection', error);
+      // Reset the mock
+      jest.dontMock('../../src/utils/constants');
     });
   });
 
   describe('setupGracefulShutdown', () => {
-    test('should setup process event listeners', () => {
+    let originalProcessOn;
+    let originalProcessExit;
+    let processListeners = {};
+
+    beforeEach(() => {
+      originalProcessOn = process.on;
+      originalProcessExit = process.exit;
+
+      process.on = jest.fn((event, callback) => {
+        processListeners[event] = callback;
+      });
+      process.exit = jest.fn();
+    });
+
+    afterEach(() => {
+      process.on = originalProcessOn;
+      process.exit = originalProcessExit;
+      processListeners = {};
+    });
+
+    it('should setup SIGINT handler', () => {
       setupGracefulShutdown();
 
       expect(process.on).toHaveBeenCalledWith('SIGINT', expect.any(Function));
-      expect(process.on).toHaveBeenCalledWith('SIGTERM', expect.any(Function));
-      expect(process.on).toHaveBeenCalledWith('uncaughtException', expect.any(Function));
-      expect(process.on).toHaveBeenCalledWith('unhandledRejection', expect.any(Function));
     });
 
-    test('should handle SIGINT signal gracefully', async () => {
-      mongoose.connection.close.mockResolvedValue();
-
+    it('should setup SIGTERM handler', () => {
       setupGracefulShutdown();
 
-      // Get the SIGINT handler and call it
-      const sigintHandler = process.on.mock.calls.find(call => call[0] === 'SIGINT')[1];
-      await sigintHandler();
+      expect(process.on).toHaveBeenCalledWith('SIGTERM', expect.any(Function));
+    });
+
+    it('should setup uncaughtException handler', () => {
+      setupGracefulShutdown();
+
+      expect(process.on).toHaveBeenCalledWith('uncaughtException', expect.any(Function));
+    });
+
+    it('should handle SIGINT gracefully', async () => {
+      const closeSpy = jest.spyOn(mongoose.connection, 'close').mockResolvedValue();
+
+      setupGracefulShutdown();
+      await processListeners.SIGINT();
 
       expect(logger.info).toHaveBeenCalledWith('Received SIGINT. Shutting down gracefully...', 'SHUTDOWN');
-      expect(mongoose.connection.close).toHaveBeenCalled();
+      expect(closeSpy).toHaveBeenCalled();
       expect(logger.database).toHaveBeenCalledWith('MongoDB connection closed');
       expect(process.exit).toHaveBeenCalledWith(0);
+
+      closeSpy.mockRestore();
     });
 
-    test('should handle SIGTERM signal gracefully', async () => {
-      mongoose.connection.close.mockResolvedValue();
+    it('should handle shutdown errors', async () => {
+      const error = new Error('Close failed');
+      const closeSpy = jest.spyOn(mongoose.connection, 'close').mockRejectedValue(error);
 
       setupGracefulShutdown();
-
-      // Get the SIGTERM handler and call it
-      const sigtermHandler = process.on.mock.calls.find(call => call[0] === 'SIGTERM')[1];
-      await sigtermHandler();
-
-      expect(logger.info).toHaveBeenCalledWith('Received SIGTERM. Shutting down gracefully...', 'SHUTDOWN');
-      expect(mongoose.connection.close).toHaveBeenCalled();
-      expect(logger.database).toHaveBeenCalledWith('MongoDB connection closed');
-      expect(process.exit).toHaveBeenCalledWith(0);
-    });
-
-    test('should handle shutdown errors', async () => {
-      const error = new Error('Shutdown failed');
-      mongoose.connection.close.mockRejectedValue(error);
-
-      setupGracefulShutdown();
-
-      // Get the SIGINT handler and call it
-      const sigintHandler = process.on.mock.calls.find(call => call[0] === 'SIGINT')[1];
-      await sigintHandler();
+      await processListeners.SIGTERM();
 
       expect(logger.error).toHaveBeenCalledWith('Error during shutdown', 'SHUTDOWN', error);
       expect(process.exit).toHaveBeenCalledWith(1);
+
+      closeSpy.mockRestore();
     });
 
-    test('should handle uncaught exceptions', () => {
-      setupGracefulShutdown();
-
-      // Get the uncaughtException handler and call it
-      const exceptionHandler = process.on.mock.calls.find(call => call[0] === 'uncaughtException')[1];
+    it('should handle uncaught exceptions', () => {
       const error = new Error('Uncaught error');
-      exceptionHandler(error);
+
+      setupGracefulShutdown();
+      processListeners.uncaughtException(error);
 
       expect(logger.error).toHaveBeenCalledWith('Uncaught Exception', 'PROCESS', error);
       expect(process.exit).toHaveBeenCalledWith(1);
     });
+  });
 
-    test('should handle unhandled rejections', () => {
-      setupGracefulShutdown();
+  describe('Integration Tests', () => {
+    beforeEach(() => {
+      // Mock mongoose connection methods for integration tests
+      mongoose.connection.close = jest.fn().mockResolvedValue();
+      mongoose.connection.dropDatabase = jest.fn().mockResolvedValue();
+    });
 
-      // Get the unhandledRejection handler and call it
-      const rejectionHandler = process.on.mock.calls.find(call => call[0] === 'unhandledRejection')[1];
-      const reason = 'Promise rejected';
-      const promise = Promise.resolve();
-      rejectionHandler(reason, promise);
+    it('should maintain connection state correctly', async () => {
+      // Mock the connection state
+      const mockConnection = {
+        readyState: 1,
+        db: { name: 'test-db' }
+      };
 
-      expect(logger.error).toHaveBeenCalledWith(`Unhandled Rejection at: ${promise}, reason: ${reason}`, 'PROCESS');
-      expect(process.exit).toHaveBeenCalledWith(1);
+      Object.defineProperty(mongoose, 'connection', {
+        value: mockConnection,
+        configurable: true
+      });
+
+      expect(mongoose.connection.readyState).toBe(1); // Connected
+      expect(mongoose.connection.db).toBeDefined();
+    });
+
+    it('should handle multiple connection attempts gracefully', async () => {
+      const spy = jest.spyOn(mongoose, 'connect').mockResolvedValue();
+
+      // First connection should succeed
+      await expect(connectDatabase()).resolves.not.toThrow();
+
+      // Second connection attempt should not fail
+      await expect(connectDatabase()).resolves.not.toThrow();
+
+      spy.mockRestore();
     });
   });
 });

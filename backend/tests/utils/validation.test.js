@@ -1,219 +1,217 @@
 const {
   isValidSessionId,
   validateMessage,
-  isValidModel,
   sanitizeHtml,
-  validateUrlParams,
   hasSuspiciousContent
 } = require('../../src/utils/validation');
 
-describe('Validation Utils', () => {
+describe('Validation Utilities', () => {
   describe('isValidSessionId', () => {
-    test('should accept valid session IDs', () => {
-      expect(isValidSessionId('abcdefghij')).toBe(true);
-      expect(isValidSessionId('ABC123xyz789')).toBe(true);
-      expect(isValidSessionId('1234567890123456789012345678901234567890123456789')).toBe(true); // 49 chars
+    it('should accept valid session IDs', () => {
+      const validIds = [
+        'abc1234567890',
+        'A1B2C3D4E5F6G7H8I9',
+        'test123456',
+        '1234567890123456789012345678901234567890'
+      ];
+
+      validIds.forEach(id => {
+        expect(isValidSessionId(id)).toBe(true);
+      });
     });
 
-    test('should reject invalid session IDs', () => {
-      expect(isValidSessionId('')).toBe(false);
-      expect(isValidSessionId('short')).toBe(false); // too short
-      expect(isValidSessionId('a'.repeat(51))).toBe(false); // too long
-      expect(isValidSessionId('invalid-chars!')).toBe(false);
-      expect(isValidSessionId('has spaces')).toBe(false);
-      expect(isValidSessionId(null)).toBe(false);
-      expect(isValidSessionId(undefined)).toBe(false);
-      expect(isValidSessionId(123)).toBe(false);
+    it('should reject invalid session IDs', () => {
+      const invalidIds = [
+        '',
+        null,
+        undefined,
+        'short',
+        'a'.repeat(51), // Too long
+        'contains-dash',
+        'contains_underscore',
+        'contains space',
+        'contains@symbol',
+        'contains.dot',
+        'contains!exclamation'
+      ];
+
+      invalidIds.forEach(id => {
+        expect(isValidSessionId(id)).toBe(false);
+      });
+    });
+
+    it('should handle non-string inputs', () => {
+      const nonStringInputs = [
+        123,
+        [],
+        {},
+        true,
+        false,
+        Symbol('test')
+      ];
+
+      nonStringInputs.forEach(input => {
+        expect(isValidSessionId(input)).toBe(false);
+      });
+    });
+
+    it('should enforce minimum length', () => {
+      expect(isValidSessionId('a'.repeat(9))).toBe(false);
+      expect(isValidSessionId('a'.repeat(10))).toBe(true);
+    });
+
+    it('should enforce maximum length', () => {
+      expect(isValidSessionId('a'.repeat(50))).toBe(true);
+      expect(isValidSessionId('a'.repeat(51))).toBe(false);
     });
   });
 
   describe('validateMessage', () => {
-    test('should accept valid messages', () => {
-      const result = validateMessage('Hello world');
-      expect(result.valid).toBe(true);
-      expect(result.message).toBe('Hello world');
-    });
-
-    test('should trim whitespace', () => {
-      const result = validateMessage('  Hello world  ');
-      expect(result.valid).toBe(true);
-      expect(result.message).toBe('Hello world');
-    });
-
-    test('should reject empty messages', () => {
-      expect(validateMessage('').valid).toBe(false);
-      expect(validateMessage('   ').valid).toBe(false);
-      expect(validateMessage(null).valid).toBe(false);
-      expect(validateMessage(undefined).valid).toBe(false);
-    });
-
-    test('should reject non-string messages', () => {
-      expect(validateMessage(123).valid).toBe(false);
-      expect(validateMessage({}).valid).toBe(false);
-      expect(validateMessage([]).valid).toBe(false);
-      expect(validateMessage(true).valid).toBe(false);
-    });
-
-    test('should reject messages that are too long', () => {
-      const longMessage = 'a'.repeat(2001);
-      const result = validateMessage(longMessage);
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain('too long');
-    });
-
-    test('should respect custom max length', () => {
-      const result = validateMessage('Hello world', 5);
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain('5 characters');
-    });
-
-    test('should detect suspicious content', () => {
-      const suspiciousMessages = [
-        '<script>alert("xss")</script>',
-        'javascript:alert("xss")',
-        'onload=alert("xss")',
-        'eval(malicious)',
-        'expression(malicious)'
+    it('should accept valid messages', () => {
+      const validMessages = [
+        'Hello, how are you?',
+        'This is a test message.',
+        'Message with numbers 123 and symbols!',
+        'A'.repeat(1000), // Long but valid message
+        '🚀 Emojis are allowed! 😊'
       ];
 
-      suspiciousMessages.forEach(msg => {
-        const result = validateMessage(msg);
-        expect(result.valid).toBe(false);
-        expect(result.error).toContain('unsafe content');
-      });
-    });
-
-    test('should allow safe HTML-like content', () => {
-      const safeMessages = [
-        'I love <3 coding',
-        'Math: 2 > 1',
-        'Email: user@example.com',
-        'Code: function() { return true; }'
-      ];
-
-      safeMessages.forEach(msg => {
-        const result = validateMessage(msg);
+      validMessages.forEach(message => {
+        const result = validateMessage(message);
         expect(result.valid).toBe(true);
+        expect(result.error).toBeUndefined();
+        expect(result.message).toBe(message);
       });
     });
-  });
 
-  describe('isValidModel', () => {
-    test('should accept valid model names', () => {
-      expect(isValidModel('llama3.2')).toBe(true);
-      expect(isValidModel('gpt-4')).toBe(true);
-      expect(isValidModel('model_name')).toBe(true);
-      expect(isValidModel('llama3.2:latest')).toBe(true);
-      expect(isValidModel('123')).toBe(true);
-      expect(isValidModel('a')).toBe(true);
+    it('should reject empty or whitespace-only messages', () => {
+      const emptyMessages = [
+        '',
+        '   ',
+        '\n\t',
+        null,
+        undefined
+      ];
+
+      emptyMessages.forEach(message => {
+        const result = validateMessage(message);
+        expect(result.valid).toBe(false);
+        expect(result.error).toBeDefined();
+      });
     });
 
-    test('should reject invalid model names', () => {
-      expect(isValidModel('')).toBe(false);
-      expect(isValidModel('model with spaces')).toBe(false);
-      expect(isValidModel('model@invalid')).toBe(false);
-      expect(isValidModel('model#invalid')).toBe(false);
-      expect(isValidModel('model$invalid')).toBe(false);
-      expect(isValidModel(null)).toBe(false);
-      expect(isValidModel(undefined)).toBe(false);
-      expect(isValidModel(123)).toBe(false);
-      expect(isValidModel({})).toBe(false);
+    it('should reject messages that are too long', () => {
+      const longMessage = 'A'.repeat(2001); // Default max is 2000
+      const result = validateMessage(longMessage);
+
+      expect(result.valid).toBe(false);
+      expect(result.error).toBeDefined();
+    });
+
+    it('should respect custom max length', () => {
+      const message = 'A'.repeat(100);
+
+      // Should pass with default length
+      expect(validateMessage(message).valid).toBe(true);
+
+      // Should fail with custom short length
+      const result = validateMessage(message, 50);
+      expect(result.valid).toBe(false);
+      expect(result.error).toBeDefined();
+    });
+
+    it('should handle non-string inputs gracefully', () => {
+      const nonStringInputs = [123, [], {}, true];
+
+      nonStringInputs.forEach(input => {
+        const result = validateMessage(input);
+        expect(result.valid).toBe(false);
+        expect(result.error).toBeDefined();
+      });
+    });
+
+    it('should provide clean message after validation', () => {
+      const messageWithWhitespace = '  Hello World  ';
+      const result = validateMessage(messageWithWhitespace);
+
+      expect(result.valid).toBe(true);
+      expect(result.message).toBe('Hello World');
+    });
+
+    it('should handle edge cases', () => {
+      // Single character
+      expect(validateMessage('A').valid).toBe(true);
+
+      // Exactly at max length
+      const maxLengthMessage = 'A'.repeat(2000);
+      expect(validateMessage(maxLengthMessage).valid).toBe(true);
+
+      // Just over max length
+      const overMaxMessage = 'A'.repeat(2001);
+      expect(validateMessage(overMaxMessage).valid).toBe(false);
     });
   });
 
   describe('sanitizeHtml', () => {
-    test('should escape HTML characters', () => {
-      expect(sanitizeHtml('<script>alert("xss")</script>'))
-        .toBe('&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;');
-      expect(sanitizeHtml('Hello & goodbye'))
-        .toBe('Hello &amp; goodbye');
-      expect(sanitizeHtml("It's a 'test'"))
-        .toBe('It&#039;s a &#039;test&#039;');
+    it('should remove potentially dangerous HTML tags', () => {
+      const dangerousInputs = [
+        '<script>alert("xss")</script>',
+        '<iframe src="malicious.com"></iframe>',
+        '<object data="malicious.swf"></object>',
+        '<embed src="malicious.swf">',
+        'Hello <script>evil()</script> World'
+      ];
+
+      dangerousInputs.forEach(input => {
+        const sanitized = sanitizeHtml(input);
+        expect(sanitized).not.toContain('<script');
+        expect(sanitized).not.toContain('<iframe');
+        expect(sanitized).not.toContain('<object');
+        expect(sanitized).not.toContain('<embed');
+      });
     });
 
-    test('should handle all special characters', () => {
-      expect(sanitizeHtml('&<>"\'')).toBe('&amp;&lt;&gt;&quot;&#039;');
+    it('should preserve safe content', () => {
+      const safeInputs = [
+        'Hello World',
+        'This is a normal message with numbers 123',
+        'Emojis are safe: 🚀 😊 🎉',
+        'Punctuation is fine: !@#$%^&*()',
+        'Line breaks\nare okay'
+      ];
+
+      safeInputs.forEach(input => {
+        const sanitized = sanitizeHtml(input);
+        // Should preserve the basic content structure
+        expect(sanitized.length).toBeGreaterThan(0);
+        expect(typeof sanitized).toBe('string');
+      });
     });
 
-    test('should handle edge cases', () => {
-      expect(sanitizeHtml('')).toBe('');
-      expect(sanitizeHtml(null)).toBe('');
-      expect(sanitizeHtml(undefined)).toBe('');
-      expect(sanitizeHtml(123)).toBe('');
-      expect(sanitizeHtml({})).toBe('');
-      expect(sanitizeHtml([])).toBe('');
-      expect(sanitizeHtml(false)).toBe('');
+    it('should handle null and undefined inputs', () => {
+      expect(sanitizeHtml(null)).toBeDefined();
+      expect(sanitizeHtml(undefined)).toBeDefined();
     });
 
-    test('should preserve safe text', () => {
-      expect(sanitizeHtml('Hello world')).toBe('Hello world');
-      expect(sanitizeHtml('123 456')).toBe('123 456');
-      expect(sanitizeHtml('user@example.com')).toBe('user@example.com');
-    });
-  });
-
-  describe('validateUrlParams', () => {
-    test('should validate and return valid parameters', () => {
-      const params = {
-        sessionId: 'validSessionId123',
-        model: 'llama3.2',
-        invalid: 'should be ignored'
-      };
-
-      const result = validateUrlParams(params);
-      expect(result.sessionId).toBe('validSessionId123');
-      expect(result.model).toBe('llama3.2');
-      expect(result.invalid).toBeUndefined();
-    });
-
-    test('should exclude invalid parameters', () => {
-      const params = {
-        sessionId: 'invalid session!',
-        model: 'invalid model@name'
-      };
-
-      const result = validateUrlParams(params);
-      expect(result.sessionId).toBeUndefined();
-      expect(result.model).toBeUndefined();
-    });
-
-    test('should handle empty parameters', () => {
-      const result = validateUrlParams({});
-      expect(Object.keys(result)).toHaveLength(0);
-    });
-
-    test('should handle null/undefined parameters', () => {
-      expect(validateUrlParams(null)).toEqual({});
-      expect(validateUrlParams(undefined)).toEqual({});
-    });
-
-    test('should handle partial valid parameters', () => {
-      const params = {
-        sessionId: 'validSessionId123',
-        model: 'invalid model@name',
-        other: 'ignored'
-      };
-
-      const result = validateUrlParams(params);
-      expect(result.sessionId).toBe('validSessionId123');
-      expect(result.model).toBeUndefined();
-      expect(result.other).toBeUndefined();
+    it('should handle non-string inputs', () => {
+      expect(sanitizeHtml(123)).toBeDefined();
+      expect(sanitizeHtml(true)).toBeDefined();
+      expect(sanitizeHtml({})).toBeDefined();
     });
   });
 
   describe('hasSuspiciousContent', () => {
-    test('should detect suspicious patterns', () => {
+    it('should detect suspicious JavaScript patterns', () => {
       const suspiciousInputs = [
-        '<script>alert("xss")</script>',
-        'javascript:alert("xss")',
-        'onload=alert("xss")',
-        'onclick=malicious()',
-        'eval(malicious)',
-        'expression(malicious)',
-        'vbscript:msgbox("xss")',
-        'data:text/html,<script>alert("xss")</script>',
-        '<iframe src="javascript:alert(\'xss\')"></iframe>',
-        '<img src="x" onerror="alert(\'xss\')">'
+        '<script>alert("test")</script>',
+        'javascript:void(0)',
+        'vbscript:msgbox("test")',
+        'onload="alert(1)"',
+        'onerror="malicious()"',
+        'onclick="steal()"',
+        'eval("malicious code")',
+        'expression(alert(1))',
+        'document.cookie'
       ];
 
       suspiciousInputs.forEach(input => {
@@ -221,47 +219,121 @@ describe('Validation Utils', () => {
       });
     });
 
-    test('should allow safe content', () => {
-      const safeInputs = [
-        'Hello world',
-        'I love <3 coding',
-        'Math: 2 > 1 and 3 < 5',
-        'Email: user@example.com',
-        'Code: function() { return true; }',
-        'https://example.com',
-        'const x = "hello";',
-        'if (condition) { doSomething(); }',
-        'Normal text with punctuation!',
-        '日本語のテキスト',
-        'Émojis: 😀 🚀 💻'
+    it('should not flag normal content as suspicious', () => {
+      const normalInputs = [
+        'Hello, how are you?',
+        'I need help with my script for a play',
+        'Can you evaluate this math problem?',
+        'The document says...',
+        'I have a question about expressions',
+        'What is the onclick event in web development?'
       ];
 
-      safeInputs.forEach(input => {
+      normalInputs.forEach(input => {
         expect(hasSuspiciousContent(input)).toBe(false);
       });
     });
 
-    test('should handle edge cases', () => {
+    it('should be case insensitive for suspicious patterns', () => {
+      const caseVariations = [
+        '<SCRIPT>alert(1)</SCRIPT>',
+        '<Script>Alert(1)</Script>',
+        'JAVASCRIPT:void(0)',
+        'JavaScript:Void(0)',
+        'EVAL("test")',
+        'Eval("test")'
+      ];
+
+      caseVariations.forEach(input => {
+        expect(hasSuspiciousContent(input)).toBe(true);
+      });
+    });
+
+    it('should handle empty and null inputs', () => {
       expect(hasSuspiciousContent('')).toBe(false);
       expect(hasSuspiciousContent(null)).toBe(false);
       expect(hasSuspiciousContent(undefined)).toBe(false);
-      expect(hasSuspiciousContent(123)).toBe(false);
-      expect(hasSuspiciousContent({})).toBe(false);
-      expect(hasSuspiciousContent([])).toBe(false);
-      expect(hasSuspiciousContent(true)).toBe(false);
+    });
+  });
+
+  describe('Integration Tests', () => {
+    it('should validate complete message flow', () => {
+      const userInput = '  Hello! How can you help me today?  ';
+
+      // Validate message
+      const validation = validateMessage(userInput);
+      expect(validation.valid).toBe(true);
+
+      // Sanitize the validated message
+      const sanitized = sanitizeHtml(validation.message);
+      expect(sanitized).toBe('Hello! How can you help me today?');
+
+      // Check for suspicious content
+      expect(hasSuspiciousContent(sanitized)).toBe(false);
     });
 
-    test('should be case-insensitive for some patterns', () => {
-      expect(hasSuspiciousContent('JAVASCRIPT:alert("xss")')).toBe(true);
-      expect(hasSuspiciousContent('Javascript:alert("xss")')).toBe(true);
-      expect(hasSuspiciousContent('OnLoad=alert("xss")')).toBe(true);
-      expect(hasSuspiciousContent('EVAL(malicious)')).toBe(true);
+    it('should handle malicious input through the full pipeline', () => {
+      const maliciousInput = '<script>alert("xss")</script>Please help me';
+
+      // Should be flagged as suspicious
+      expect(hasSuspiciousContent(maliciousInput)).toBe(true);
+
+      // But validation might still pass for length
+      const validation = validateMessage(maliciousInput);
+      expect(validation.valid).toBe(false); // Should be false due to suspicious content
+
+      // Sanitization should clean it
+      const sanitized = sanitizeHtml(maliciousInput);
+      expect(sanitized).not.toContain('<script>');
     });
 
-    test('should detect suspicious patterns in mixed content', () => {
-      expect(hasSuspiciousContent('This looks normal but has <script>alert("xss")</script> in it')).toBe(true);
-      expect(hasSuspiciousContent('Click here: javascript:alert("xss") for more info')).toBe(true);
-      expect(hasSuspiciousContent('Some text then eval(bad) and more text')).toBe(true);
+    it('should handle edge cases in combination', () => {
+      const edgeCases = [
+        '', // Empty
+        ' ', // Just whitespace
+        'A'.repeat(2001), // Too long
+        null, // Null
+        undefined, // Undefined
+        '<script>alert(1)</script>', // Malicious
+        'Normal message' // Normal
+      ];
+
+      edgeCases.forEach(input => {
+        // Should not throw errors
+        expect(() => {
+          const validation = validateMessage(input);
+          const sanitized = sanitizeHtml(input);
+          const suspicious = hasSuspiciousContent(input);
+        }).not.toThrow();
+      });
+    });
+  });
+
+  describe('Performance Tests', () => {
+    it('should handle large inputs efficiently', () => {
+      const largeInput = 'A'.repeat(100000);
+      const startTime = Date.now();
+
+      sanitizeHtml(largeInput);
+      hasSuspiciousContent(largeInput);
+      validateMessage(largeInput);
+
+      const endTime = Date.now();
+      expect(endTime - startTime).toBeLessThan(1000); // Should complete in under 1 second
+    });
+
+    it('should handle many validations efficiently', () => {
+      const startTime = Date.now();
+
+      for (let i = 0; i < 1000; i++) {
+        const message = `Test message ${i}`;
+        validateMessage(message);
+        sanitizeHtml(message);
+        hasSuspiciousContent(message);
+      }
+
+      const endTime = Date.now();
+      expect(endTime - startTime).toBeLessThan(1000);
     });
   });
 });

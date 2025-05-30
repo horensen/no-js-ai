@@ -1,122 +1,191 @@
-const {
-  validateSessionIdWithResponse,
-  validateMessageWithResponse,
-  getChatRenderData,
-  handleDatabaseError,
-  validateSessionAndMessage
-} = require('../../src/utils/routeHelpers');
+const routeHelpers = require('../../src/utils/routeHelpers');
 const { isValidSessionId, validateMessage } = require('../../src/utils/validation');
 const { sendChatError, sendErrorPage, sendError } = require('../../src/utils/response');
 const chatService = require('../../src/services/chatService');
 const { ERROR_MESSAGES } = require('../../src/utils/constants');
+const { processMessages } = require('../../src/utils/markdown');
+const logger = require('../../src/utils/logger');
 
 // Mock dependencies
 jest.mock('../../src/utils/validation');
 jest.mock('../../src/utils/response');
 jest.mock('../../src/services/chatService');
+jest.mock('../../src/utils/constants', () => ({
+  ERROR_MESSAGES: {
+    SESSION_INVALID: 'Invalid session ID',
+    DATABASE_ERROR: 'Database error occurred'
+  }
+}));
+jest.mock('../../src/utils/markdown');
+jest.mock('../../src/utils/logger');
 
-describe('Route Helpers', () => {
+describe('RouteHelpers', () => {
   let mockRes;
 
   beforeEach(() => {
-    mockRes = global.testHelpers.mockResponse();
     jest.clearAllMocks();
+
+    // Mock response object
+    mockRes = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+      render: jest.fn(),
+      redirect: jest.fn()
+    };
+
+    // Mock console methods
+    console.log = jest.fn();
+    console.error = jest.fn();
+
+    // Default mock implementations
+    processMessages.mockImplementation((messages) => messages);
   });
 
   describe('validateSessionIdWithResponse', () => {
-    test('should return true for valid session ID', () => {
+    it('should return true for valid session ID', () => {
       isValidSessionId.mockReturnValue(true);
 
-      const result = validateSessionIdWithResponse('valid-session', mockRes);
+      const result = routeHelpers.validateSessionIdWithResponse('validSession123', mockRes);
 
       expect(result).toBe(true);
+      expect(isValidSessionId).toHaveBeenCalledWith('validSession123');
       expect(sendErrorPage).not.toHaveBeenCalled();
     });
 
-    test('should return false and send error for invalid session ID', () => {
+    it('should return false and send error page for invalid session ID', () => {
       isValidSessionId.mockReturnValue(false);
 
-      const result = validateSessionIdWithResponse('invalid-session', mockRes);
+      const result = routeHelpers.validateSessionIdWithResponse('invalid', mockRes);
 
       expect(result).toBe(false);
-      expect(sendErrorPage).toHaveBeenCalledWith(mockRes, 'Invalid session format.');
+      expect(sendErrorPage).toHaveBeenCalledWith(mockRes, ERROR_MESSAGES.SESSION_INVALID);
     });
 
-    test('should use custom error handler when provided', () => {
+    it('should use custom error handler when provided', () => {
       isValidSessionId.mockReturnValue(false);
       const customErrorHandler = jest.fn();
 
-      const result = validateSessionIdWithResponse('invalid-session', mockRes, customErrorHandler);
+      const result = routeHelpers.validateSessionIdWithResponse('invalid', mockRes, customErrorHandler);
 
       expect(result).toBe(false);
-      expect(customErrorHandler).toHaveBeenCalledWith(mockRes, 'Invalid session format.');
+      expect(customErrorHandler).toHaveBeenCalledWith(mockRes, ERROR_MESSAGES.SESSION_INVALID);
       expect(sendErrorPage).not.toHaveBeenCalled();
     });
   });
 
   describe('validateMessageWithResponse', () => {
-    test('should return validation result for valid message', async () => {
-      const validationResult = { valid: true, message: 'Clean message' };
-      validateMessage.mockReturnValue(validationResult);
+    it('should return validation result for valid message', async () => {
+      const mockValidation = {
+        valid: true,
+        message: 'Valid message'
+      };
 
-      const result = await validateMessageWithResponse('test message', 'session-123', mockRes);
+      validateMessage.mockReturnValue(mockValidation);
 
-      expect(result).toEqual(validationResult);
-      expect(sendChatError).not.toHaveBeenCalled();
+      const result = await routeHelpers.validateMessageWithResponse('Valid message', 'session123', mockRes);
+
+      expect(result).toBe(mockValidation);
+      expect(validateMessage).toHaveBeenCalledWith('Valid message');
       expect(sendError).not.toHaveBeenCalled();
+      expect(sendChatError).not.toHaveBeenCalled();
     });
 
-    test('should return null and send chat error for invalid message (non-streaming)', async () => {
-      const validationResult = { valid: false, error: 'Invalid message' };
-      validateMessage.mockReturnValue(validationResult);
+    it('should send direct error for invalid message in streaming mode', async () => {
+      const mockValidation = {
+        valid: false,
+        error: 'Message too long'
+      };
 
-      const mockChat = { messages: [{ role: 'user', content: 'previous' }] };
+      validateMessage.mockReturnValue(mockValidation);
+
+      const result = await routeHelpers.validateMessageWithResponse('Invalid message', 'session123', mockRes, true);
+
+      expect(result).toBeNull();
+      expect(sendError).toHaveBeenCalledWith(mockRes, 'Message too long', 400);
+      expect(sendChatError).not.toHaveBeenCalled();
+    });
+
+    it('should send chat error for invalid message in non-streaming mode', async () => {
+      const mockValidation = {
+        valid: false,
+        error: 'Message too long'
+      };
+
+      const mockChat = {
+        messages: [{ role: 'user', content: 'Previous message' }]
+      };
+
+      validateMessage.mockReturnValue(mockValidation);
       chatService.getOrCreateChatSession.mockResolvedValue(mockChat);
 
-      const result = await validateMessageWithResponse('bad message', 'session-123', mockRes, false);
+      const result = await routeHelpers.validateMessageWithResponse('Invalid message', 'session123', mockRes, false);
 
       expect(result).toBeNull();
-      expect(sendChatError).toHaveBeenCalledWith(mockRes, 'session-123', mockChat.messages, 'Invalid message');
+      expect(chatService.getOrCreateChatSession).toHaveBeenCalledWith('session123');
+      expect(sendChatError).toHaveBeenCalledWith(mockRes, 'session123', mockChat.messages, 'Message too long');
       expect(sendError).not.toHaveBeenCalled();
     });
 
-    test('should return null and send error for invalid message (streaming)', async () => {
-      const validationResult = { valid: false, error: 'Invalid message' };
-      validateMessage.mockReturnValue(validationResult);
+    it('should handle database error during chat retrieval', async () => {
+      const mockValidation = {
+        valid: false,
+        error: 'Message too long'
+      };
 
-      const result = await validateMessageWithResponse('bad message', 'session-123', mockRes, true);
+      validateMessage.mockReturnValue(mockValidation);
+      chatService.getOrCreateChatSession.mockRejectedValue(new Error('Database error'));
 
-      expect(result).toBeNull();
-      expect(sendError).toHaveBeenCalledWith(mockRes, 'Invalid message', 400);
-      expect(sendChatError).not.toHaveBeenCalled();
-    });
-
-    test('should handle database error during validation', async () => {
-      const validationResult = { valid: false, error: 'Invalid message' };
-      validateMessage.mockReturnValue(validationResult);
-
-      const dbError = new Error('Database connection failed');
-      chatService.getOrCreateChatSession.mockRejectedValue(dbError);
-      console.error = jest.fn(); // Mock console.error
-
-      const result = await validateMessageWithResponse('bad message', 'session-123', mockRes, false);
+      const result = await routeHelpers.validateMessageWithResponse('Invalid message', 'session123', mockRes, false);
 
       expect(result).toBeNull();
-      expect(console.error).toHaveBeenCalledWith('Database error:', dbError);
+      expect(console.error).toHaveBeenCalledWith('Database error:', expect.any(Error));
       expect(sendErrorPage).toHaveBeenCalledWith(mockRes, ERROR_MESSAGES.DATABASE_ERROR);
     });
   });
 
   describe('getChatRenderData', () => {
-    test('should return template data with defaults', () => {
-      const sessionId = 'test-session';
-      const messages = [{ role: 'user', content: 'Hello' }];
+    it('should return render data with processed messages', () => {
+      const mockMessages = [
+        { role: 'user', content: 'Hello' },
+        { role: 'assistant', content: 'Hi there!' }
+      ];
 
-      const result = getChatRenderData(sessionId, messages);
+      const processedMessages = [
+        { role: 'user', content: 'Hello' },
+        { role: 'assistant', content: '<p>Hi there!</p>' }
+      ];
+
+      processMessages.mockReturnValue(processedMessages);
+
+      const result = routeHelpers.getChatRenderData(
+        'session123',
+        mockMessages,
+        'Test error',
+        true,
+        'Pending message',
+        'dark'
+      );
+
+      expect(processMessages).toHaveBeenCalledWith(mockMessages);
+      expect(result).toEqual({
+        sessionId: 'session123',
+        messages: processedMessages,
+        error: 'Test error',
+        isLoading: true,
+        pendingMessage: 'Pending message',
+        theme: 'dark'
+      });
+    });
+
+    it('should use default values when not provided', () => {
+      const mockMessages = [];
+      processMessages.mockReturnValue([]);
+
+      const result = routeHelpers.getChatRenderData('session123', mockMessages);
 
       expect(result).toEqual({
-        sessionId: 'test-session',
-        messages: messages,
+        sessionId: 'session123',
+        messages: [],
         error: null,
         isLoading: false,
         pendingMessage: null,
@@ -124,95 +193,149 @@ describe('Route Helpers', () => {
       });
     });
 
-    test('should return template data with custom values', () => {
-      const sessionId = 'test-session';
-      const messages = [{ role: 'user', content: 'Hello' }];
-      const error = 'Test error';
-      const isLoading = true;
-      const pendingMessage = 'Pending';
+    it('should log debug information', () => {
+      const mockMessages = [
+        { role: 'user', content: 'Hello' }
+      ];
 
-      const result = getChatRenderData(sessionId, messages, error, isLoading, pendingMessage);
+      processMessages.mockReturnValue(mockMessages);
 
-      expect(result).toEqual({
-        sessionId: 'test-session',
-        messages: messages,
-        error: 'Test error',
-        isLoading: true,
-        pendingMessage: 'Pending',
-        theme: null
-      });
+      routeHelpers.getChatRenderData('session123', mockMessages);
+
+      expect(console.log).toHaveBeenCalledWith(
+        '[DEBUG] getChatRenderData: Input messages:',
+        expect.any(String)
+      );
+      expect(console.log).toHaveBeenCalledWith(
+        '[DEBUG] getChatRenderData: Processed messages:',
+        expect.any(String)
+      );
     });
   });
 
   describe('handleDatabaseError', () => {
-    test('should log error and send error page with default message', () => {
-      const error = new Error('Database connection failed');
-      console.error = jest.fn(); // Mock console.error
+    it('should log error and send error page', () => {
+      const mockError = new Error('Database connection failed');
 
-      handleDatabaseError(error, mockRes);
+      routeHelpers.handleDatabaseError(mockError, mockRes);
 
-      expect(console.error).toHaveBeenCalledWith('Database error:', error);
+      expect(console.error).toHaveBeenCalledWith('Database error:', mockError);
       expect(sendErrorPage).toHaveBeenCalledWith(mockRes, ERROR_MESSAGES.DATABASE_ERROR);
     });
 
-    test('should log error and send error page with custom message', () => {
-      const error = new Error('Database connection failed');
-      const customMessage = 'Custom database error message';
-      console.error = jest.fn(); // Mock console.error
+    it('should use custom fallback message when provided', () => {
+      const mockError = new Error('Database connection failed');
+      const customMessage = 'Custom error message';
 
-      handleDatabaseError(error, mockRes, customMessage);
+      routeHelpers.handleDatabaseError(mockError, mockRes, customMessage);
 
-      expect(console.error).toHaveBeenCalledWith('Database error:', error);
+      expect(console.error).toHaveBeenCalledWith('Database error:', mockError);
       expect(sendErrorPage).toHaveBeenCalledWith(mockRes, customMessage);
     });
   });
 
   describe('validateSessionAndMessage', () => {
-    test('should return validation object for valid inputs', async () => {
-      isValidSessionId.mockReturnValue(true);
-      const validationResult = { valid: true, message: 'Clean message' };
-      validateMessage.mockReturnValue(validationResult);
+    let mockRes;
 
-      const result = await validateSessionAndMessage('valid-session', 'valid message', mockRes);
+    beforeEach(() => {
+      mockRes = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn(),
+        render: jest.fn(),
+        redirect: jest.fn()
+      };
+
+      // Reset all mocks
+      jest.clearAllMocks();
+    });
+
+    it('should return validation object for valid session and message', async () => {
+      const mockValidation = {
+        valid: true,
+        message: 'Valid message'
+      };
+
+      // Mock the underlying validation functions
+      isValidSessionId.mockReturnValue(true);
+      validateMessage.mockReturnValue(mockValidation);
+
+      const result = await routeHelpers.validateSessionAndMessage('session123', 'Valid message', mockRes, false);
 
       expect(result).toEqual({
-        sessionId: 'valid-session',
-        validation: validationResult
+        sessionId: 'session123',
+        validation: mockValidation
       });
+      expect(isValidSessionId).toHaveBeenCalledWith('session123');
+      expect(validateMessage).toHaveBeenCalledWith('Valid message');
     });
 
-    test('should return null for invalid session ID', async () => {
+    it('should return null for invalid session ID', async () => {
       isValidSessionId.mockReturnValue(false);
 
-      const result = await validateSessionAndMessage('invalid-session', 'valid message', mockRes);
+      const result = await routeHelpers.validateSessionAndMessage('invalid', 'Valid message', mockRes, false);
 
       expect(result).toBeNull();
-      expect(sendErrorPage).toHaveBeenCalledWith(mockRes, 'Invalid session format.');
+      expect(isValidSessionId).toHaveBeenCalledWith('invalid');
+      expect(sendErrorPage).toHaveBeenCalled();
     });
 
-    test('should return null for invalid message (non-streaming)', async () => {
+    it('should return null for invalid message', async () => {
       isValidSessionId.mockReturnValue(true);
-      const validationResult = { valid: false, error: 'Invalid message' };
-      validateMessage.mockReturnValue(validationResult);
+      validateMessage.mockReturnValue({
+        valid: false,
+        error: 'Invalid message'
+      });
 
-      const mockChat = { messages: [] };
-      chatService.getOrCreateChatSession.mockResolvedValue(mockChat);
+      chatService.getOrCreateChatSession.mockResolvedValue({
+        messages: []
+      });
 
-      const result = await validateSessionAndMessage('valid-session', 'invalid message', mockRes, false);
+      const result = await routeHelpers.validateSessionAndMessage('session123', 'Invalid message', mockRes, false);
 
       expect(result).toBeNull();
+      expect(isValidSessionId).toHaveBeenCalledWith('session123');
+      expect(validateMessage).toHaveBeenCalledWith('Invalid message');
       expect(sendChatError).toHaveBeenCalled();
     });
 
-    test('should return null for invalid message (streaming)', async () => {
+    it('should pass streaming flag correctly', async () => {
       isValidSessionId.mockReturnValue(true);
-      const validationResult = { valid: false, error: 'Invalid message' };
-      validateMessage.mockReturnValue(validationResult);
+      validateMessage.mockReturnValue({
+        valid: false,
+        error: 'Invalid message'
+      });
 
-      const result = await validateSessionAndMessage('valid-session', 'invalid message', mockRes, true);
+      await routeHelpers.validateSessionAndMessage('session123', 'Valid message', mockRes, true);
+
+      expect(sendError).toHaveBeenCalledWith(mockRes, 'Invalid message', 400);
+    });
+  });
+
+  describe('Integration Tests', () => {
+    it('should handle complete validation flow', async () => {
+      const mockValidation = {
+        valid: true,
+        message: 'Valid message'
+      };
+
+      isValidSessionId.mockReturnValue(true);
+      validateMessage.mockReturnValue(mockValidation);
+
+      const result = await routeHelpers.validateSessionAndMessage('validSession123', 'Valid message', mockRes, false);
+
+      expect(result).toEqual({
+        sessionId: 'validSession123',
+        validation: mockValidation
+      });
+    });
+
+    it('should handle complete error flow', async () => {
+      isValidSessionId.mockReturnValue(false);
+
+      const result = await routeHelpers.validateSessionAndMessage('invalid', 'Valid message', mockRes, false);
 
       expect(result).toBeNull();
-      expect(sendError).toHaveBeenCalledWith(mockRes, 'Invalid message', 400);
+      expect(sendErrorPage).toHaveBeenCalledWith(mockRes, ERROR_MESSAGES.SESSION_INVALID);
     });
   });
 });

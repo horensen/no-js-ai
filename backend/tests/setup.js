@@ -14,8 +14,16 @@ beforeAll(async () => {
 
 afterAll(async () => {
   // Close database connection
-  await mongoose.connection.dropDatabase();
-  await mongoose.connection.close();
+  try {
+    if (mongoose.connection.dropDatabase) {
+      await mongoose.connection.dropDatabase();
+    }
+    if (mongoose.connection.close) {
+      await mongoose.connection.close();
+    }
+  } catch (error) {
+    console.warn('Error during test cleanup:', error.message);
+  }
 
   // Stop the in-memory MongoDB instance
   if (mongoServer) {

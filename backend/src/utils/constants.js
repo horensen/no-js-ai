@@ -76,53 +76,48 @@ const SESSION_CONFIG = {
   CLEANUP_INTERVAL_HOURS: parsePositiveInt(process.env.CLEANUP_INTERVAL_HOURS, 24)
 };
 
-// Legacy exports for backwards compatibility
-const MIN_SESSION_ID_LENGTH = SESSION_CONFIG.MIN_ID_LENGTH;
-const MAX_SESSION_ID_LENGTH = SESSION_CONFIG.MAX_ID_LENGTH;
-const SESSION_ID_PATTERN = SESSION_CONFIG.ID_PATTERN;
-
 // Rate limiting configuration with environment overrides
 const RATE_LIMITS = {
   API: {
-    windowMs: parsePositiveInt(process.env.API_RATE_WINDOW_MS, 15 * 60 * 1000), // 15 minutes
-    max: parsePositiveInt(process.env.API_RATE_MAX, 100), // requests per window
-    message: 'Too many API requests'
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100,
+    message: 'Too many API requests, please try again later.'
   },
   CHAT: {
-    windowMs: parsePositiveInt(process.env.CHAT_RATE_WINDOW_MS, 60 * 1000), // 1 minute
-    max: parsePositiveInt(process.env.CHAT_RATE_MAX, 10), // messages per window
-    message: 'Too many chat messages'
-  },
-  STREAMING: {
-    windowMs: parsePositiveInt(process.env.STREAMING_RATE_WINDOW_MS, 5 * 60 * 1000), // 5 minutes
-    max: parsePositiveInt(process.env.STREAMING_RATE_MAX, 5), // streams per window
-    message: 'Too many streaming requests'
+    windowMs: 60 * 1000, // 1 minute
+    max: 5, // Stricter limit for chat messages
+    message: 'Too many chat messages, please wait before sending another.'
   }
 };
 
-// Security configuration
-const SECURITY_CONFIG = {
-  // Content Security Policy
-  CSP_DIRECTIVES: {
-    defaultSrc: ["'self'"],
-    styleSrc: ["'self'", "'unsafe-inline'"],
-    scriptSrc: NODE_ENV === 'development' ? ["'self'", "'unsafe-eval'"] : ["'self'"],
-    imgSrc: ["'self'", "data:"],
-    connectSrc: ["'self'"],
-    fontSrc: ["'self'"],
-    objectSrc: ["'none'"],
-    mediaSrc: ["'self'"],
-    frameSrc: ["'none'"]
+// Debug mode configuration
+const DEBUG_MODE = process.env.NODE_ENV !== 'production';
+
+// Error messages
+const ERROR_MESSAGES = {
+  MESSAGE_REQUIRED: 'Message is required',
+  MESSAGE_TOO_LONG: 'Message is too long (max {maxLength} characters)',
+  VALIDATION: {
+    REQUIRED_FIELD: 'This field is required',
+    INVALID_FORMAT: 'Invalid format provided',
+    TOO_LONG: 'Content is too long',
+    EMPTY_MESSAGE: 'Message cannot be empty'
   },
-
-  // HTTPS enforcement
-  FORCE_HTTPS: parseBoolean(process.env.FORCE_HTTPS, NODE_ENV === 'production'),
-
-  // Session security
-  SECURE_COOKIES: parseBoolean(process.env.SECURE_COOKIES, NODE_ENV === 'production'),
-
-  // CORS settings
-  CORS_ORIGIN: process.env.CORS_ORIGIN || (NODE_ENV === 'production' ? false : '*')
+  SESSION: {
+    NOT_FOUND: 'Chat session not found',
+    INVALID_ID: 'Invalid session ID format',
+    CREATION_FAILED: 'Failed to create chat session'
+  },
+  AI: {
+    CONNECTION_FAILED: 'Failed to connect to AI service',
+    PROCESSING_ERROR: 'Error processing your request',
+    TIMEOUT: 'Request timed out, please try again'
+  },
+  GENERAL: {
+    INTERNAL_ERROR: 'An internal error occurred',
+    RATE_LIMITED: 'Too many requests, please wait',
+    UNAUTHORIZED: 'Unauthorized access'
+  }
 };
 
 // Security patterns for input validation
@@ -150,28 +145,6 @@ const PATHS = {
   UPLOADS: process.env.UPLOADS_PATH || './uploads'
 };
 
-// Logging configuration
-const LOGGING_CONFIG = {
-  LEVEL: validateEnvVar('LOG_LEVEL', 'info',
-    (val) => ['error', 'warn', 'info', 'debug'].includes(val)
-  ),
-  FORMAT: validateEnvVar('LOG_FORMAT', 'json',
-    (val) => ['json', 'simple', 'detailed'].includes(val)
-  ),
-  MAX_FILE_SIZE: parsePositiveInt(process.env.LOG_MAX_FILE_SIZE, 10 * 1024 * 1024), // 10MB
-  MAX_FILES: parsePositiveInt(process.env.LOG_MAX_FILES, 5),
-  ENABLE_CONSOLE: parseBoolean(process.env.LOG_ENABLE_CONSOLE, NODE_ENV !== 'production'),
-  ENABLE_FILE: parseBoolean(process.env.LOG_ENABLE_FILE, true)
-};
-
-// Performance monitoring
-const PERFORMANCE_CONFIG = {
-  ENABLE_METRICS: parseBoolean(process.env.ENABLE_METRICS, false),
-  METRICS_INTERVAL: parsePositiveInt(process.env.METRICS_INTERVAL, 60000), // 1 minute
-  SLOW_QUERY_THRESHOLD: parsePositiveInt(process.env.SLOW_QUERY_THRESHOLD, 1000), // 1 second
-  MEMORY_USAGE_THRESHOLD: parsePositiveInt(process.env.MEMORY_USAGE_THRESHOLD, 500 * 1024 * 1024) // 500MB
-};
-
 // Model preferences (in order of preference) - Legacy support
 const MODEL_PREFERENCES = [
   'llama3.2',
@@ -189,18 +162,6 @@ const STREAMING_CONFIG = {
   ENABLED: parseBoolean(process.env.STREAMING_ENABLED, true)
 };
 
-// Error messages - Legacy support
-const ERROR_MESSAGES = {
-  SESSION_INVALID: 'Invalid session format.',
-  MESSAGE_REQUIRED: 'Message is required',
-  MESSAGE_TOO_LONG: 'Message too long. Please keep it under {maxLength} characters.',
-  MESSAGE_UNSAFE: 'Message contains potentially unsafe content.',
-  DATABASE_ERROR: 'Database operation failed',
-  OLLAMA_UNAVAILABLE: 'AI service is currently unavailable',
-  RATE_LIMIT_EXCEEDED: 'Rate limit exceeded. Please try again later.',
-  UNAUTHORIZED_REQUEST: 'Request must originate from this application.'
-};
-
 // HTTP status codes - Legacy support
 const HTTP_STATUS = {
   OK: 200,
@@ -212,39 +173,10 @@ const HTTP_STATUS = {
   INTERNAL_SERVER_ERROR: 500
 };
 
-// Validation functions
-const VALIDATORS = {
-  isValidEmail: (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email),
-  isValidUrl: (url) => {
-    try {
-      new URL(url);
-      return true;
-    } catch {
-      return false;
-    }
-  },
-  isValidSessionId: (id) => typeof id === 'string' && SESSION_CONFIG.ID_PATTERN.test(id),
-  isValidMessageLength: (content) =>
-    typeof content === 'string' &&
-    content.length >= MESSAGE_CONFIG.MIN_LENGTH &&
-    content.length <= MESSAGE_CONFIG.MAX_LENGTH
-};
-
-// Environment info for debugging
-const ENV_INFO = {
-  NODE_ENV,
-  PORT,
-  TIMESTAMP: new Date().toISOString(),
-  NODE_VERSION: process.version,
-  PLATFORM: process.platform,
-  ARCH: process.arch
-};
-
 module.exports = {
   // Environment
   NODE_ENV,
   PORT,
-  ENV_INFO,
 
   // Database
   DATABASE_CONFIG,
@@ -261,25 +193,16 @@ module.exports = {
 
   // Sessions
   SESSION_CONFIG,
-  MIN_SESSION_ID_LENGTH, // Legacy
-  MAX_SESSION_ID_LENGTH, // Legacy
-  SESSION_ID_PATTERN, // Legacy
+  SESSION_ID_PATTERN: SESSION_CONFIG.ID_PATTERN, // Export the pattern for validation
 
   // Rate limiting
   RATE_LIMITS,
 
   // Security
-  SECURITY_CONFIG,
   SUSPICIOUS_PATTERNS,
 
   // Paths
   PATHS,
-
-  // Logging
-  LOGGING_CONFIG,
-
-  // Performance
-  PERFORMANCE_CONFIG,
 
   // Legacy constants for backwards compatibility
   MODEL_PREFERENCES,
@@ -287,6 +210,6 @@ module.exports = {
   ERROR_MESSAGES,
   HTTP_STATUS,
 
-  // Validators
-  VALIDATORS
+  // Debug mode
+  DEBUG_MODE,
 };

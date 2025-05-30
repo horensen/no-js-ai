@@ -22,12 +22,12 @@ function generateSessionId(length = 15) {
  * @returns {string} - Preview text
  */
 function createSessionPreview(messages) {
-  if (!messages || messages.length === 0) {
+  if (!messages || !Array.isArray(messages) || messages.length === 0) {
     return 'New chat';
   }
 
   // Find the first user message
-  const firstUserMessage = messages.find(msg => msg.role === 'user');
+  const firstUserMessage = messages.find(msg => msg && msg.role === 'user');
   if (!firstUserMessage) {
     return 'New chat';
   }
@@ -61,7 +61,7 @@ function getLastMessage(messages) {
  * @returns {object} - Message counts by role
  */
 function countMessagesByRole(messages) {
-  if (!messages || messages.length === 0) {
+  if (!messages || !Array.isArray(messages) || messages.length === 0) {
     return { user: 0, assistant: 0, total: 0 };
   }
 
@@ -80,14 +80,49 @@ function countMessagesByRole(messages) {
  * @returns {object} - Formatted session data
  */
 function formatSessionForAPI(session) {
-  const lastMessage = getLastMessage(session.messages);
-  const messageCounts = countMessagesByRole(session.messages);
+  // Handle null/undefined sessions
+  if (!session) {
+    return {
+      id: null,
+      messageCount: 0,
+      messageCounts: { user: 0, assistant: 0, total: 0 },
+      preview: 'New Chat',
+      lastMessage: null,
+      title: 'New Chat',
+      createdAt: undefined,
+      updatedAt: undefined
+    };
+  }
+
+  // Handle Mongoose documents
+  if (session.toObject && typeof session.toObject === 'function') {
+    session = session.toObject();
+  }
+
+  const messages = session.messages || [];
+  const lastMessage = getLastMessage(messages);
+  const messageCounts = countMessagesByRole(messages);
+
+  // Generate title from first user message or use default
+  let title = 'New Chat';
+  if (messages.length > 0 && Array.isArray(messages)) {
+    const firstUserMessage = messages.find(msg => msg && msg.role === 'user');
+    if (firstUserMessage && firstUserMessage.content) {
+      const content = firstUserMessage.content.trim();
+      if (content.length > 50) {
+        title = content.substring(0, 47) + '...';
+      } else {
+        title = content;
+      }
+    }
+  }
 
   return {
-    sessionId: session.sessionId,
-    messageCount: session.messages.length,
+    id: session.sessionId,
+    title,
+    messageCount: messages.length,
     messageCounts,
-    preview: createSessionPreview(session.messages),
+    preview: createSessionPreview(messages),
     lastMessage,
     createdAt: session.createdAt,
     updatedAt: session.updatedAt

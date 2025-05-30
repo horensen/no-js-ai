@@ -57,66 +57,6 @@ async function findBestAvailableModel() {
 }
 
 /**
- * Call Ollama API with streaming support
- * @param {string|Array} messageOrHistory - Message or conversation history
- * @param {Function} onToken - Callback for each token
- * @param {string} model - Model name (optional)
- * @param {string} systemPrompt - System prompt for context (optional)
- * @returns {Promise<string>} - Complete response
- */
-async function callOllamaStreaming(messageOrHistory, onToken, model = null, systemPrompt = '') {
-  try {
-    // If no model specified, find the best available one
-    if (!model) {
-      model = await findBestAvailableModel();
-    }
-
-    const prompt = formatConversationPrompt(messageOrHistory, systemPrompt);
-    const config = getOllamaRequestConfig(model, prompt, true);
-
-    const response = await axios(`${OLLAMA_URL}/api/generate`, config);
-    let fullResponse = '';
-
-    return new Promise((resolve, reject) => {
-      response.data.on('data', (chunk) => {
-        const lines = chunk.toString().split('\n');
-
-        for (const line of lines) {
-          if (line.trim()) {
-            try {
-              const parsed = JSON.parse(line);
-              if (parsed.response) {
-                fullResponse += parsed.response;
-                if (onToken) {
-                  onToken(parsed.response);
-                }
-              }
-              if (parsed.done) {
-                resolve(fullResponse);
-                return;
-              }
-            } catch (e) {
-              // Ignore JSON parse errors for partial chunks
-            }
-          }
-        }
-      });
-
-      response.data.on('error', (error) => {
-        reject(error);
-      });
-
-      response.data.on('end', () => {
-        resolve(fullResponse);
-      });
-    });
-
-  } catch (error) {
-    await handleOllamaError(error, getAvailableModels, true);
-  }
-}
-
-/**
  * Call Ollama API (non-streaming)
  * @param {string|Array} messageOrHistory - Message or conversation history
  * @param {string} model - Model name (optional)
@@ -157,7 +97,6 @@ async function checkOllamaHealth() {
 
 module.exports = {
   callOllama,
-  callOllamaStreaming,
   checkOllamaHealth,
   getAvailableModels
 };

@@ -1,6 +1,5 @@
 const request = require('supertest');
 const express = require('express');
-const path = require('path');
 const cookieParser = require('cookie-parser');
 const utilityRoutes = require('../../src/routes/utility');
 
@@ -9,87 +8,137 @@ describe('Utility Routes', () => {
 
   beforeEach(() => {
     app = express();
-
-    // Setup middleware
-    app.use(express.json());
-    app.use(express.urlencoded({ extended: true }));
     app.use(cookieParser());
+    app.use(express.urlencoded({ extended: true }));
+    app.use(express.json());
 
-    // Mock the render function instead of setting up view engine
+    // Mock view engine
+    app.set('view engine', 'ejs');
+    app.set('views', 'views');
+
+    // Mock render function
     app.use((req, res, next) => {
-      const originalRender = res.render;
-      res.render = jest.fn((template, data) => {
-        res.status(200).send(`Rendered ${template} with data: ${JSON.stringify(data)}`);
+      res.render = jest.fn((view, data) => {
+        res.json({ view, data });
       });
       next();
     });
 
-    app.use('/', utilityRoutes);
+    app.use('/utility', utilityRoutes);
   });
 
   describe('GET /debug', () => {
-    test('should return debug information', async () => {
-      const response = await request(app).get('/debug');
+    it('should render debug page with light theme by default', async () => {
+      const response = await request(app)
+        .get('/utility/debug')
+        .expect(200);
 
-      expect(response.status).toBe(200);
-      expect(response.text).toContain('Rendered debug');
+      expect(response.body.view).toBe('debug');
+      expect(response.body.data.theme).toBe('light');
     });
 
-    test('should include theme information', async () => {
+    it('should render debug page with theme from cookie', async () => {
       const response = await request(app)
-        .get('/debug')
-        .set('Cookie', 'theme=dark');
+        .get('/utility/debug')
+        .set('Cookie', ['theme=dark'])
+        .expect(200);
 
-      expect(response.status).toBe(200);
-      expect(response.text).toContain('dark');
+      expect(response.body.view).toBe('debug');
+      expect(response.body.data.theme).toBe('dark');
+    });
+
+    it('should handle missing theme cookie gracefully', async () => {
+      const response = await request(app)
+        .get('/utility/debug')
+        .expect(200);
+
+      expect(response.body.data.theme).toBe('light');
     });
   });
 
   describe('POST /toggle-theme', () => {
-    test('should toggle theme from light to dark', async () => {
+    it('should toggle from light to dark theme', async () => {
       const response = await request(app)
-        .post('/toggle-theme')
-        .set('Cookie', 'theme=light');
+        .post('/utility/toggle-theme')
+        .set('Cookie', ['theme=light'])
+        .send({ returnUrl: '/test' })
+        .expect(302);
 
-      expect(response.status).toBe(302);
+      expect(response.headers.location).toBe('/test');
       expect(response.headers['set-cookie']).toBeDefined();
       expect(response.headers['set-cookie'][0]).toContain('theme=dark');
     });
 
-    test('should toggle theme from dark to light', async () => {
+    it('should toggle from dark to light theme', async () => {
       const response = await request(app)
-        .post('/toggle-theme')
-        .set('Cookie', 'theme=dark');
+        .post('/utility/toggle-theme')
+        .set('Cookie', ['theme=dark'])
+        .send({ returnUrl: '/home' })
+        .expect(302);
 
-      expect(response.status).toBe(302);
-      expect(response.headers['set-cookie']).toBeDefined();
+      expect(response.headers.location).toBe('/home');
       expect(response.headers['set-cookie'][0]).toContain('theme=light');
     });
 
-    test('should default to dark when no theme cookie present', async () => {
+    it('should default to light theme when no cookie is set', async () => {
       const response = await request(app)
-        .post('/toggle-theme');
+        .post('/utility/toggle-theme')
+        .send({ returnUrl: '/dashboard' })
+        .expect(302);
 
-      expect(response.status).toBe(302);
-      expect(response.headers['set-cookie']).toBeDefined();
+      expect(response.headers.location).toBe('/dashboard');
       expect(response.headers['set-cookie'][0]).toContain('theme=dark');
     });
 
-    test('should redirect to default URL when no returnUrl provided', async () => {
+    it('should redirect to root when no returnUrl is provided', async () => {
       const response = await request(app)
-        .post('/toggle-theme');
+        .post('/utility/toggle-theme')
+        .expect(302);
 
-      expect(response.status).toBe(302);
       expect(response.headers.location).toBe('/');
     });
 
-    test('should redirect to provided returnUrl', async () => {
-      const response = await request(app)
-        .post('/toggle-theme')
-        .send({ returnUrl: '/custom-page' });
+    it('should set secure cookie in production', async () => {
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
 
-      expect(response.status).toBe(302);
-      expect(response.headers.location).toBe('/custom-page');
+      const response = await request(app)
+        .post('/utility/toggle-theme')
+        .expect(302);
+
+      expect(response.headers['set-cookie'][0]).toContain('Secure');
+
+      process.env.NODE_ENV = originalEnv;
+    });
+
+    it('should set cookie with correct attributes', async () => {
+      const response = await request(app)
+        .post('/utility/toggle-theme')
+        .expect(302);
+
+      const setCookieHeader = response.headers['set-cookie'][0];
+      expect(setCookieHeader).toContain('HttpOnly');
+      expect(setCookieHeader).toContain('SameSite=Strict');
+      expect(setCookieHeader).toContain('Max-Age=31536000'); // 1 year in seconds
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('should handle malformed requests gracefully', async () => {
+      const response = await request(app)
+        .post('/utility/toggle-theme')
+        .send('invalid-data')
+        .expect(302);
+
+      expect(response.headers.location).toBe('/');
+    });
+
+    it('should handle empty POST body', async () => {
+      const response = await request(app)
+        .post('/utility/toggle-theme')
+        .expect(302);
+
+      expect(response.headers.location).toBe('/');
     });
   });
 });

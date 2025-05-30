@@ -11,14 +11,12 @@ require('dotenv').config();
 const { connectDatabase, setupGracefulShutdown } = require('./config/database');
 const {
   chatRateLimitMiddleware,
-  streamingRateLimitMiddleware,
   inputValidationMiddleware,
-  streamingSecurityMiddleware,
   commonSecurityHeaders
 } = require('./middleware/security');
 
 // Import routes
-const chatRoutes = require('./routes/chatRoutes');
+const chatRoutes = require('./routes/index');
 const healthRoutes = require('./routes/healthRoutes');
 
 // Import utilities
@@ -56,10 +54,6 @@ function configureRouteMiddleware(app) {
 
   // Rate limiting for chat functionality
   app.use('/chat', chatRateLimitMiddleware);
-
-  // Enhanced rate limiting and security for streaming
-  app.use('/stream', streamingRateLimitMiddleware);
-  app.use('/stream', streamingSecurityMiddleware);
 }
 
 /**

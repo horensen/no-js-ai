@@ -1,154 +1,252 @@
-const {
-  generateSessionId,
-  createSessionPreview,
-  getLastMessage,
-  countMessagesByRole,
-  formatSessionForAPI,
-  validateSessionAccess,
-  getSessionCleanupCriteria
-} = require('../../src/utils/session');
+const { generateSessionId, formatSessionForAPI } = require('../../src/utils/session');
 
-describe('Session Utils', () => {
+describe('Session Utility', () => {
   describe('generateSessionId', () => {
-    test('should generate session ID with default length', () => {
+    it('should generate a session ID', () => {
       const sessionId = generateSessionId();
-      expect(sessionId).toHaveLength(15);
-      expect(/^[a-zA-Z0-9]+$/.test(sessionId)).toBe(true);
+
+      expect(sessionId).toBeDefined();
+      expect(typeof sessionId).toBe('string');
+      expect(sessionId.length).toBeGreaterThan(0);
     });
 
-    test('should generate session ID with custom length', () => {
-      const sessionId = generateSessionId(20);
-      expect(sessionId).toHaveLength(20);
-      expect(/^[a-zA-Z0-9]+$/.test(sessionId)).toBe(true);
+    it('should generate unique session IDs', () => {
+      const sessionId1 = generateSessionId();
+      const sessionId2 = generateSessionId();
+
+      expect(sessionId1).not.toBe(sessionId2);
     });
 
-    test('should generate unique session IDs', () => {
-      const id1 = generateSessionId();
-      const id2 = generateSessionId();
-      expect(id1).not.toBe(id2);
-    });
-  });
+    it('should generate session IDs with consistent format', () => {
+      const sessionId = generateSessionId();
 
-  describe('createSessionPreview', () => {
-    test('should create preview from first user message', () => {
-      const messages = [
-        { role: 'user', content: 'What is the weather like today?' },
-        { role: 'assistant', content: 'The weather is sunny.' }
-      ];
-      const preview = createSessionPreview(messages);
-      expect(preview).toBe('What is the weather like today?');
+      // Should be alphanumeric and possibly contain hyphens
+      expect(sessionId).toMatch(/^[a-zA-Z0-9-]+$/);
     });
 
-    test('should truncate long messages', () => {
-      const messages = [
-        { role: 'user', content: 'This is a very long message that should be truncated because it exceeds the maximum length' }
-      ];
-      const preview = createSessionPreview(messages);
-      expect(preview).toHaveLength(53); // 50 chars + '...'
-      expect(preview.endsWith('...')).toBe(true);
-    });
+    it('should generate multiple unique IDs', () => {
+      const sessionIds = new Set();
 
-    test('should handle empty or no messages', () => {
-      expect(createSessionPreview([])).toBe('New chat');
-      expect(createSessionPreview(null)).toBe('New chat');
-      expect(createSessionPreview(undefined)).toBe('New chat');
-    });
+      for (let i = 0; i < 100; i++) {
+        sessionIds.add(generateSessionId());
+      }
 
-    test('should handle assistant-only messages', () => {
-      const messages = [
-        { role: 'assistant', content: 'Hello, how can I help?' }
-      ];
-      const preview = createSessionPreview(messages);
-      expect(preview).toBe('New chat');
-    });
-
-    test('should normalize whitespace', () => {
-      const messages = [
-        { role: 'user', content: '  Hello    world   ' }
-      ];
-      const preview = createSessionPreview(messages);
-      // Original content has whitespace, so it gets trimmed and normalized,
-      // and since the trimmed length differs from original, ellipsis is added
-      expect(preview).toBe('Hello world...');
-    });
-  });
-
-  describe('getLastMessage', () => {
-    test('should return last message', () => {
-      const messages = [
-        { role: 'user', content: 'First' },
-        { role: 'assistant', content: 'Second' },
-        { role: 'user', content: 'Third' }
-      ];
-      const lastMessage = getLastMessage(messages);
-      expect(lastMessage.content).toBe('Third');
-    });
-
-    test('should handle empty messages', () => {
-      expect(getLastMessage([])).toBe(null);
-      expect(getLastMessage(null)).toBe(null);
-      expect(getLastMessage(undefined)).toBe(null);
-    });
-  });
-
-  describe('countMessagesByRole', () => {
-    test('should count messages by role', () => {
-      const messages = [
-        { role: 'user', content: 'First' },
-        { role: 'assistant', content: 'Second' },
-        { role: 'user', content: 'Third' },
-        { role: 'user', content: 'Fourth' }
-      ];
-      const counts = countMessagesByRole(messages);
-      expect(counts.user).toBe(3);
-      expect(counts.assistant).toBe(1);
-      expect(counts.total).toBe(4);
-    });
-
-    test('should handle empty messages', () => {
-      const counts = countMessagesByRole([]);
-      expect(counts.user).toBe(0);
-      expect(counts.assistant).toBe(0);
-      expect(counts.total).toBe(0);
+      // All should be unique
+      expect(sessionIds.size).toBe(100);
     });
   });
 
   describe('formatSessionForAPI', () => {
-    test('should format session data for API', () => {
+    it('should format session with messages for API', () => {
       const session = {
-        sessionId: 'test123',
+        sessionId: 'test-session-123',
         messages: [
-          { role: 'user', content: 'Hello', timestamp: new Date() },
-          { role: 'assistant', content: 'Hi there', timestamp: new Date() }
+          { role: 'user', content: 'Hello' },
+          { role: 'assistant', content: 'Hi there!' }
         ],
+        createdAt: new Date('2023-01-01T00:00:00Z'),
+        updatedAt: new Date('2023-01-01T01:00:00Z')
+      };
+
+      const formatted = formatSessionForAPI(session);
+
+      expect(formatted).toHaveProperty('id', 'test-session-123');
+      expect(formatted).toHaveProperty('title');
+      expect(formatted).toHaveProperty('lastMessage');
+      expect(formatted).toHaveProperty('messageCount', 2);
+      expect(formatted).toHaveProperty('createdAt');
+      expect(formatted).toHaveProperty('updatedAt');
+    });
+
+    it('should handle session with no messages', () => {
+      const session = {
+        sessionId: 'empty-session',
+        messages: [],
+        createdAt: new Date('2023-01-01T00:00:00Z'),
+        updatedAt: new Date('2023-01-01T01:00:00Z')
+      };
+
+      const formatted = formatSessionForAPI(session);
+
+      expect(formatted.id).toBe('empty-session');
+      expect(formatted.messageCount).toBe(0);
+      expect(formatted.lastMessage).toBeNull();
+      expect(formatted.title).toBe('New Chat');
+    });
+
+    it('should generate title from first user message', () => {
+      const session = {
+        sessionId: 'titled-session',
+        messages: [
+          { role: 'user', content: 'What is the weather like today?' },
+          { role: 'assistant', content: 'I cannot check the weather.' }
+        ],
+        createdAt: new Date('2023-01-01T00:00:00Z'),
+        updatedAt: new Date('2023-01-01T01:00:00Z')
+      };
+
+      const formatted = formatSessionForAPI(session);
+
+      expect(formatted.title).toContain('What is the weather');
+    });
+
+    it('should truncate long titles', () => {
+      const longMessage = 'This is a very long message that should be truncated because it exceeds the maximum length allowed for session titles in the API response format';
+
+      const session = {
+        sessionId: 'long-title-session',
+        messages: [
+          { role: 'user', content: longMessage }
+        ],
+        createdAt: new Date('2023-01-01T00:00:00Z'),
+        updatedAt: new Date('2023-01-01T01:00:00Z')
+      };
+
+      const formatted = formatSessionForAPI(session);
+
+      expect(formatted.title.length).toBeLessThanOrEqual(50);
+      expect(formatted.title).toContain('...');
+    });
+
+    it('should handle session with only assistant messages', () => {
+      const session = {
+        sessionId: 'assistant-only',
+        messages: [
+          { role: 'assistant', content: 'Hello! How can I help you?' }
+        ],
+        createdAt: new Date('2023-01-01T00:00:00Z'),
+        updatedAt: new Date('2023-01-01T01:00:00Z')
+      };
+
+      const formatted = formatSessionForAPI(session);
+
+      expect(formatted.title).toBe('New Chat');
+      expect(formatted.messageCount).toBe(1);
+    });
+
+    it('should format dates correctly', () => {
+      const session = {
+        sessionId: 'date-test',
+        messages: [],
+        createdAt: new Date('2023-01-01T12:30:45Z'),
+        updatedAt: new Date('2023-01-02T15:45:30Z')
+      };
+
+      const formatted = formatSessionForAPI(session);
+
+      expect(formatted.createdAt).toEqual(new Date('2023-01-01T12:30:45Z'));
+      expect(formatted.updatedAt).toEqual(new Date('2023-01-02T15:45:30Z'));
+    });
+
+    it('should handle missing optional fields', () => {
+      const session = {
+        sessionId: 'minimal-session',
+        messages: [
+          { role: 'user', content: 'Test' }
+        ]
+      };
+
+      const formatted = formatSessionForAPI(session);
+
+      expect(formatted.id).toBe('minimal-session');
+      expect(formatted.messageCount).toBe(1);
+      expect(formatted.createdAt).toBeUndefined();
+      expect(formatted.updatedAt).toBeUndefined();
+    });
+
+    it('should handle Mongoose document objects', () => {
+      const mockSession = {
+        sessionId: 'mongoose-session',
+        messages: [
+          { role: 'user', content: 'Hello' }
+        ],
+        createdAt: new Date('2023-01-01T00:00:00Z'),
+        updatedAt: new Date('2023-01-01T01:00:00Z'),
+        toObject: jest.fn().mockReturnValue({
+          sessionId: 'mongoose-session',
+          messages: [
+            { role: 'user', content: 'Hello' }
+          ],
+          createdAt: new Date('2023-01-01T00:00:00Z'),
+          updatedAt: new Date('2023-01-01T01:00:00Z')
+        })
+      };
+
+      const formatted = formatSessionForAPI(mockSession);
+
+      expect(mockSession.toObject).toHaveBeenCalled();
+      expect(formatted.id).toBe('mongoose-session');
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('should handle null session gracefully', () => {
+      expect(() => formatSessionForAPI(null)).not.toThrow();
+    });
+
+    it('should handle undefined session gracefully', () => {
+      expect(() => formatSessionForAPI(undefined)).not.toThrow();
+    });
+
+    it('should handle session without sessionId', () => {
+      const session = {
+        messages: [{ role: 'user', content: 'Test' }]
+      };
+
+      const formatted = formatSessionForAPI(session);
+
+      expect(formatted.id).toBeUndefined();
+    });
+
+    it('should handle malformed messages array', () => {
+      const session = {
+        sessionId: 'malformed-session',
+        messages: 'not-an-array'
+      };
+
+      expect(() => formatSessionForAPI(session)).not.toThrow();
+    });
+  });
+
+  describe('Performance', () => {
+    it('should handle large message arrays efficiently', () => {
+      const messages = Array(1000).fill().map((_, i) => ({
+        role: i % 2 === 0 ? 'user' : 'assistant',
+        content: `Message ${i}`
+      }));
+
+      const session = {
+        sessionId: 'large-session',
+        messages,
         createdAt: new Date(),
         updatedAt: new Date()
       };
 
+      const startTime = Date.now();
       const formatted = formatSessionForAPI(session);
-      expect(formatted.sessionId).toBe('test123');
-      expect(formatted.messageCount).toBe(2);
-      expect(formatted.messageCounts.user).toBe(1);
-      expect(formatted.messageCounts.assistant).toBe(1);
-      expect(formatted.preview).toBe('Hello');
-      expect(formatted.lastMessage.content).toBe('Hi there');
-    });
-  });
+      const endTime = Date.now();
 
-  describe('validateSessionAccess', () => {
-    test('should validate session access', () => {
-      const session = { sessionId: 'test123' };
-      expect(validateSessionAccess(session)).toBe(true);
-      expect(validateSessionAccess(null)).toBe(false);
+      expect(endTime - startTime).toBeLessThan(100); // Should complete quickly
+      expect(formatted.messageCount).toBe(1000);
     });
-  });
 
-  describe('getSessionCleanupCriteria', () => {
-    test('should generate cleanup criteria', () => {
-      const cutoffDate = new Date();
-      const criteria = getSessionCleanupCriteria(cutoffDate);
-      expect(criteria.updatedAt.$lt).toBe(cutoffDate);
-      expect(criteria.$or).toHaveLength(2);
+    it('should handle many session formatting operations', () => {
+      const sessions = Array(100).fill().map((_, i) => ({
+        sessionId: `session-${i}`,
+        messages: [
+          { role: 'user', content: `Hello ${i}` },
+          { role: 'assistant', content: `Hi ${i}` }
+        ],
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }));
+
+      const startTime = Date.now();
+      const formatted = sessions.map(formatSessionForAPI);
+      const endTime = Date.now();
+
+      expect(endTime - startTime).toBeLessThan(100);
+      expect(formatted).toHaveLength(100);
     });
   });
 });

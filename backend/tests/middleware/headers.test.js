@@ -1,69 +1,62 @@
-const { securityMiddleware, streamingSecurityMiddleware, commonSecurityHeaders } = require('../../src/middleware/headers');
+const { commonSecurityHeaders } = require('../../src/middleware/headers');
 
 describe('Headers Middleware', () => {
-  let mockReq;
-  let mockRes;
-  let mockNext;
+  let req, res, next;
 
   beforeEach(() => {
-    mockReq = {
-      path: '/test',
-      method: 'GET',
-      headers: {}
+    req = {};
+    res = {
+      setHeader: jest.fn()
     };
-    mockRes = {
-      setHeader: jest.fn(),
-      set: jest.fn(),
-      removeHeader: jest.fn()
-    };
-    mockNext = jest.fn();
-  });
-
-  describe('securityMiddleware', () => {
-    test('should be defined', () => {
-      expect(securityMiddleware).toBeDefined();
-      expect(typeof securityMiddleware).toBe('function');
-    });
-
-    test('should call next for valid request', (done) => {
-      securityMiddleware(mockReq, mockRes, (err) => {
-        if (err) {
-          done(err);
-        } else {
-          done();
-        }
-      });
-    });
-  });
-
-  describe('streamingSecurityMiddleware', () => {
-    test('should be defined', () => {
-      expect(streamingSecurityMiddleware).toBeDefined();
-      expect(typeof streamingSecurityMiddleware).toBe('function');
-    });
-
-    test('should set security headers', () => {
-      streamingSecurityMiddleware(mockReq, mockRes, mockNext);
-
-      expect(mockRes.setHeader).toHaveBeenCalledWith('X-Content-Type-Options', 'nosniff');
-      expect(mockRes.setHeader).toHaveBeenCalledWith('X-Frame-Options', 'DENY');
-      expect(mockRes.setHeader).toHaveBeenCalledWith('X-XSS-Protection', '1; mode=block');
-      expect(mockNext).toHaveBeenCalled();
-    });
+    next = jest.fn();
   });
 
   describe('commonSecurityHeaders', () => {
-    test('should be defined', () => {
-      expect(commonSecurityHeaders).toBeDefined();
-      expect(typeof commonSecurityHeaders).toBe('function');
+    it('should set all required security headers', () => {
+      commonSecurityHeaders(req, res, next);
+
+      expect(res.setHeader).toHaveBeenCalledWith('X-Content-Type-Options', 'nosniff');
+      expect(res.setHeader).toHaveBeenCalledWith('X-Frame-Options', 'DENY');
+      expect(res.setHeader).toHaveBeenCalledWith('X-XSS-Protection', '1; mode=block');
+      expect(res.setHeader).toHaveBeenCalledWith('Referrer-Policy', 'strict-origin-when-cross-origin');
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Security-Policy', "default-src 'self'; script-src 'none'; object-src 'none';");
     });
 
-    test('should set common headers', () => {
-      commonSecurityHeaders(mockReq, mockRes, mockNext);
+    it('should set custom headers', () => {
+      commonSecurityHeaders(req, res, next);
 
-      expect(mockRes.setHeader).toHaveBeenCalledWith('X-Powered-By', 'No-JS AI Chat');
-      expect(mockRes.setHeader).toHaveBeenCalledWith('Server', 'Secure-Chat/1.0');
-      expect(mockNext).toHaveBeenCalled();
+      expect(res.setHeader).toHaveBeenCalledWith('X-Powered-By', 'No-JS AI Chat');
+      expect(res.setHeader).toHaveBeenCalledWith('Server', 'Secure-Chat/1.0');
+    });
+
+    it('should call next() to continue middleware chain', () => {
+      commonSecurityHeaders(req, res, next);
+
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(next).toHaveBeenCalledWith();
+    });
+
+    it('should set exactly 7 headers', () => {
+      commonSecurityHeaders(req, res, next);
+
+      expect(res.setHeader).toHaveBeenCalledTimes(7);
+    });
+
+    it('should work with different request objects', () => {
+      const customReq = { method: 'POST', url: '/test' };
+
+      commonSecurityHeaders(customReq, res, next);
+
+      expect(res.setHeader).toHaveBeenCalledTimes(7);
+      expect(next).toHaveBeenCalled();
+    });
+
+    it('should not modify request object', () => {
+      const originalReq = { ...req };
+
+      commonSecurityHeaders(req, res, next);
+
+      expect(req).toEqual(originalReq);
     });
   });
 });

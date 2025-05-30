@@ -48,8 +48,11 @@ function formatConversationPrompt(messageOrHistory, systemPrompt = '') {
  * @returns {object} - Axios configuration object
  */
 function getOllamaRequestConfig(model, prompt, streaming = false) {
+  const { OLLAMA_CONFIG } = require('./constants');
+
   const config = {
     method: 'POST',
+    url: `${OLLAMA_CONFIG.URL}/api/generate`,
     headers: {
       'Content-Type': 'application/json',
     },

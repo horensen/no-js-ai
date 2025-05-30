@@ -4,63 +4,58 @@ const {
   sendChatError,
   sendErrorPage,
   asyncHandler,
-  setupSSE,
-  sendSSEEvent,
   logErrorAndRespond,
   createChatTemplateData,
-  sendValidationError,
-  isResponseSent,
-  sendRateLimitError
+  isResponseSent
 } = require('../../src/utils/response');
 
 // Mock dependencies
-jest.mock('../../src/utils/constants', () => ({
-  HTTP_STATUS: {
-    OK: 200,
-    BAD_REQUEST: 400,
-    INTERNAL_SERVER_ERROR: 500,
-    TOO_MANY_REQUESTS: 429
-  },
-  ERROR_MESSAGES: {
-    DATABASE_ERROR: 'Database error occurred',
-    RATE_LIMIT_EXCEEDED: 'Rate limit exceeded'
-  }
-}));
-
-jest.mock('../../src/utils/markdown', () => ({
-  processMessages: jest.fn((messages) => messages)
-}));
-
+jest.mock('../../src/utils/constants');
+jest.mock('../../src/utils/markdown');
 jest.mock('../../src/utils/logger');
 
+const { HTTP_STATUS, ERROR_MESSAGES, PATHS } = require('../../src/utils/constants');
 const { processMessages } = require('../../src/utils/markdown');
+const logger = require('../../src/utils/logger');
 
-describe('Response Utils', () => {
-  let mockReq;
+describe('Response Utility', () => {
   let mockRes;
+  let mockReq;
 
   beforeEach(() => {
-    mockReq = {
-      path: '/test',
-      cookies: { theme: 'light' },
-      get: jest.fn()
-    };
-
+    // Mock response object
     mockRes = {
       status: jest.fn().mockReturnThis(),
-      json: jest.fn(),
-      render: jest.fn(),
-      writeHead: jest.fn(),
-      write: jest.fn(),
-      req: mockReq,
-      headersSent: false
+      json: jest.fn().mockReturnThis(),
+      render: jest.fn().mockReturnThis(),
+      headersSent: false,
+      req: {}
     };
 
+    // Mock request object
+    mockReq = {
+      path: '/test',
+      get: jest.fn(),
+      cookies: { theme: 'light' }
+    };
+
+    mockRes.req = mockReq;
+
+    // Reset mocks
     jest.clearAllMocks();
+
+    // Mock constants
+    HTTP_STATUS.OK = 200;
+    HTTP_STATUS.BAD_REQUEST = 400;
+    HTTP_STATUS.INTERNAL_SERVER_ERROR = 500;
+    ERROR_MESSAGES.DATABASE_ERROR = 'Database error occurred';
+
+    // Mock processMessages
+    processMessages.mockImplementation((messages) => messages || []);
   });
 
   describe('sendSuccess', () => {
-    test('should send success response with default status', () => {
+    it('should send successful response with default status', () => {
       const data = { message: 'Success' };
 
       sendSuccess(mockRes, data);
@@ -72,10 +67,11 @@ describe('Response Utils', () => {
       });
     });
 
-    test('should send success response with custom status', () => {
-      const data = { id: 1 };
+    it('should send successful response with custom status', () => {
+      const data = { id: 123 };
+      const status = 201;
 
-      sendSuccess(mockRes, data, 201);
+      sendSuccess(mockRes, data, status);
 
       expect(mockRes.status).toHaveBeenCalledWith(201);
       expect(mockRes.json).toHaveBeenCalledWith({
@@ -84,7 +80,7 @@ describe('Response Utils', () => {
       });
     });
 
-    test('should handle null data', () => {
+    it('should handle null data', () => {
       sendSuccess(mockRes, null);
 
       expect(mockRes.json).toHaveBeenCalledWith({
@@ -92,10 +88,21 @@ describe('Response Utils', () => {
         data: null
       });
     });
+
+    it('should handle array data', () => {
+      const data = [1, 2, 3];
+
+      sendSuccess(mockRes, data);
+
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: true,
+        data: data
+      });
+    });
   });
 
   describe('sendError', () => {
-    test('should send error response with default status', () => {
+    it('should send error response with default status', () => {
       const message = 'Something went wrong';
 
       sendError(mockRes, message);
@@ -107,21 +114,22 @@ describe('Response Utils', () => {
       });
     });
 
-    test('should send error response with custom status', () => {
-      const message = 'Server error';
+    it('should send error response with custom status', () => {
+      const message = 'Not found';
+      const status = 404;
 
-      sendError(mockRes, message, 500);
+      sendError(mockRes, message, status);
 
-      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.status).toHaveBeenCalledWith(404);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: false,
         error: message
       });
     });
 
-    test('should include details when provided', () => {
-      const message = 'Validation error';
-      const details = { field: 'email', value: 'invalid' };
+    it('should include details when provided', () => {
+      const message = 'Validation failed';
+      const details = { field: 'email', reason: 'invalid format' };
 
       sendError(mockRes, message, 400, details);
 
@@ -131,16 +139,25 @@ describe('Response Utils', () => {
         details: details
       });
     });
+
+    it('should not include details when null', () => {
+      const message = 'Error';
+
+      sendError(mockRes, message, 400, null);
+
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: false,
+        error: message
+      });
+    });
   });
 
   describe('sendChatError', () => {
-    test('should render chat with error', () => {
-      const sessionId = 'test-session';
+    it('should render chat page with error', () => {
+      const sessionId = 'session123';
       const messages = [{ role: 'user', content: 'Hello' }];
-      const errorMessage = 'Chat error';
-      const sessions = [{ sessionId: 'session1' }];
-
-      processMessages.mockReturnValue(messages);
+      const errorMessage = 'Chat error occurred';
+      const sessions = [{ id: 'session1' }];
 
       sendChatError(mockRes, sessionId, messages, errorMessage, sessions);
 
@@ -157,24 +174,47 @@ describe('Response Utils', () => {
       });
     });
 
-    test('should handle null messages', () => {
-      sendChatError(mockRes, 'session', null, 'Error');
+    it('should handle null messages', () => {
+      const sessionId = 'session123';
+      const errorMessage = 'Error';
+
+      sendChatError(mockRes, sessionId, null, errorMessage);
 
       expect(processMessages).toHaveBeenCalledWith([]);
+      expect(mockRes.render).toHaveBeenCalledWith('chat', expect.objectContaining({
+        messages: []
+      }));
     });
 
-    test('should use custom theme and loading state', () => {
-      sendChatError(mockRes, 'session', [], 'Error', [], true, 'dark');
+    it('should use custom theme', () => {
+      const sessionId = 'session123';
+      const messages = [];
+      const errorMessage = 'Error';
+      const theme = 'dark';
+
+      sendChatError(mockRes, sessionId, messages, errorMessage, [], false, theme);
 
       expect(mockRes.render).toHaveBeenCalledWith('chat', expect.objectContaining({
-        isLoading: true,
         theme: 'dark'
+      }));
+    });
+
+    it('should handle loading state', () => {
+      const sessionId = 'session123';
+      const messages = [];
+      const errorMessage = 'Error';
+      const isLoading = true;
+
+      sendChatError(mockRes, sessionId, messages, errorMessage, [], isLoading);
+
+      expect(mockRes.render).toHaveBeenCalledWith('chat', expect.objectContaining({
+        isLoading: true
       }));
     });
   });
 
   describe('sendErrorPage', () => {
-    test('should render error page with default status', () => {
+    it('should render error page with default status', () => {
       const message = 'Page error';
 
       sendErrorPage(mockRes, message);
@@ -186,110 +226,107 @@ describe('Response Utils', () => {
       });
     });
 
-    test('should use theme from cookies', () => {
-      mockReq.cookies = { theme: 'dark' };
+    it('should render error page with custom status', () => {
+      const message = 'Not found';
+      const status = 404;
 
-      sendErrorPage(mockRes, 'Error');
+      sendErrorPage(mockRes, message, status);
 
+      expect(mockRes.status).toHaveBeenCalledWith(404);
       expect(mockRes.render).toHaveBeenCalledWith('error', {
-        error: 'Error',
-        theme: 'dark'
-      });
-    });
-
-    test('should handle missing cookies', () => {
-      mockReq.cookies = undefined;
-
-      sendErrorPage(mockRes, 'Error');
-
-      expect(mockRes.render).toHaveBeenCalledWith('error', {
-        error: 'Error',
+        error: message,
         theme: 'light'
       });
     });
 
-    test('should use custom status', () => {
-      sendErrorPage(mockRes, 'Not found', 404);
+    it('should use theme from cookies', () => {
+      mockReq.cookies = { theme: 'dark' };
+      const message = 'Error';
 
-      expect(mockRes.status).toHaveBeenCalledWith(404);
+      sendErrorPage(mockRes, message);
+
+      expect(mockRes.render).toHaveBeenCalledWith('error', {
+        error: message,
+        theme: 'dark'
+      });
+    });
+
+    it('should handle missing cookies', () => {
+      mockReq.cookies = undefined;
+      const message = 'Error';
+
+      sendErrorPage(mockRes, message);
+
+      expect(mockRes.render).toHaveBeenCalledWith('error', {
+        error: message,
+        theme: 'light'
+      });
     });
   });
 
   describe('asyncHandler', () => {
-    test('should handle successful async function', async () => {
-      const mockNext = jest.fn();
+    it('should wrap async function and handle success', async () => {
       const asyncFn = jest.fn().mockResolvedValue('success');
-
+      const next = jest.fn();
       const wrappedFn = asyncHandler(asyncFn);
-      await wrappedFn(mockReq, mockRes, mockNext);
 
-      expect(asyncFn).toHaveBeenCalledWith(mockReq, mockRes, mockNext);
-      expect(mockNext).not.toHaveBeenCalled();
+      await wrappedFn(mockReq, mockRes, next);
+
+      expect(asyncFn).toHaveBeenCalledWith(mockReq, mockRes, next);
+      expect(next).not.toHaveBeenCalled();
     });
 
-    test('should catch and forward errors', async () => {
+    it('should catch and forward errors', async () => {
       const error = new Error('Async error');
-      const mockNext = jest.fn();
       const asyncFn = jest.fn().mockRejectedValue(error);
-
+      const next = jest.fn();
       const wrappedFn = asyncHandler(asyncFn);
-      await wrappedFn(mockReq, mockRes, mockNext);
 
-      expect(mockNext).toHaveBeenCalledWith(error);
+      await wrappedFn(mockReq, mockRes, next);
+
+      expect(asyncFn).toHaveBeenCalledWith(mockReq, mockRes, next);
+      expect(next).toHaveBeenCalledWith(error);
     });
 
-    test('should handle sync functions that return promises', async () => {
-      const mockNext = jest.fn();
-      const syncFn = (req, res, next) => Promise.resolve('sync success');
-
+    it('should handle non-promise functions', async () => {
+      const syncFn = jest.fn().mockReturnValue('sync result');
+      const next = jest.fn();
       const wrappedFn = asyncHandler(syncFn);
-      await wrappedFn(mockReq, mockRes, mockNext);
 
-      expect(mockNext).not.toHaveBeenCalled();
-    });
-  });
+      await wrappedFn(mockReq, mockRes, next);
 
-  describe('setupSSE', () => {
-    test('should set up Server-Sent Events headers', () => {
-      setupSSE(mockRes);
-
-      expect(mockRes.writeHead).toHaveBeenCalledWith(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Cache-Control'
-      });
-    });
-  });
-
-  describe('sendSSEEvent', () => {
-    test('should send Server-Sent Event', () => {
-      const eventName = 'message';
-      const data = { content: 'Hello' };
-
-      sendSSEEvent(mockRes, eventName, data);
-
-      expect(mockRes.write).toHaveBeenCalledWith(`event: ${eventName}\n`);
-      expect(mockRes.write).toHaveBeenCalledWith(`data: ${JSON.stringify(data)}\n\n`);
+      expect(syncFn).toHaveBeenCalledWith(mockReq, mockRes, next);
+      expect(next).not.toHaveBeenCalled();
     });
   });
 
   describe('logErrorAndRespond', () => {
-    test('should send JSON error for API requests', () => {
+    beforeEach(() => {
+      mockReq.path = '/test';
+      mockReq.get = jest.fn().mockReturnValue(null);
+    });
+
+    it('should log error and send JSON response for API requests', () => {
       mockReq.path = '/api/test';
       const error = new Error('Test error');
+      const context = 'TEST_CONTEXT';
+      const userMessage = 'User friendly error';
 
-      logErrorAndRespond(error, mockRes, 'TEST_CONTEXT');
+      logErrorAndRespond(error, mockRes, context, userMessage, 400);
 
-      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(logger.error).toHaveBeenCalledWith(
+        'TEST_CONTEXT Error: Test error',
+        context,
+        error
+      );
+      expect(mockRes.status).toHaveBeenCalledWith(400);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: false,
-        error: 'Database error occurred'
+        error: userMessage
       });
     });
 
-    test('should detect API request by Content-Type', () => {
+    it('should detect API request by Content-Type header', () => {
       mockReq.get.mockImplementation((header) => {
         if (header === 'Content-Type') return 'application/json';
         return null;
@@ -300,9 +337,10 @@ describe('Response Utils', () => {
       logErrorAndRespond(error, mockRes);
 
       expect(mockRes.json).toHaveBeenCalled();
+      expect(mockRes.render).not.toHaveBeenCalled();
     });
 
-    test('should detect API request by Accept header', () => {
+    it('should detect API request by Accept header', () => {
       mockReq.get.mockImplementation((header) => {
         if (header === 'Accept') return 'application/json';
         return null;
@@ -313,50 +351,53 @@ describe('Response Utils', () => {
       logErrorAndRespond(error, mockRes);
 
       expect(mockRes.json).toHaveBeenCalled();
+      expect(mockRes.render).not.toHaveBeenCalled();
     });
 
-    test('should send error page for non-API requests', () => {
-      mockReq.path = '/page';
+    it('should render error page for non-API requests', () => {
       const error = new Error('Test error');
+      const userMessage = 'Page error';
 
-      logErrorAndRespond(error, mockRes);
+      logErrorAndRespond(error, mockRes, 'CONTEXT', userMessage, 404);
 
+      expect(mockRes.status).toHaveBeenCalledWith(404);
       expect(mockRes.render).toHaveBeenCalledWith('error', {
-        error: 'Database error occurred',
+        error: userMessage,
         theme: 'light'
       });
     });
 
-    test('should not respond if headers already sent', () => {
+    it('should not respond if headers already sent', () => {
       mockRes.headersSent = true;
       const error = new Error('Test error');
 
       logErrorAndRespond(error, mockRes);
 
+      expect(logger.error).toHaveBeenCalled();
       expect(mockRes.status).not.toHaveBeenCalled();
       expect(mockRes.json).not.toHaveBeenCalled();
       expect(mockRes.render).not.toHaveBeenCalled();
     });
 
-    test('should use custom message and status', () => {
-      mockReq.path = '/api/test';
+    it('should use default values', () => {
       const error = new Error('Test error');
 
-      logErrorAndRespond(error, mockRes, 'CUSTOM', 'Custom error', 400);
+      logErrorAndRespond(error, mockRes);
 
-      expect(mockRes.status).toHaveBeenCalledWith(400);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        success: false,
-        error: 'Custom error'
-      });
+      expect(logger.error).toHaveBeenCalledWith(
+        'UNKNOWN Error: Test error',
+        'UNKNOWN',
+        error
+      );
+      expect(mockRes.status).toHaveBeenCalledWith(500);
     });
   });
 
   describe('createChatTemplateData', () => {
-    test('should create template data with all parameters', () => {
-      const sessionId = 'test-session';
+    it('should create template data with all parameters', () => {
+      const sessionId = 'session123';
       const messages = [{ role: 'user', content: 'Hello' }];
-      const error = 'Test error';
+      const error = 'Error message';
       const isLoading = true;
       const pendingMessage = 'Pending...';
 
@@ -371,11 +412,13 @@ describe('Response Utils', () => {
       });
     });
 
-    test('should use default values', () => {
-      const result = createChatTemplateData('session');
+    it('should use default values', () => {
+      const sessionId = 'session123';
+
+      const result = createChatTemplateData(sessionId);
 
       expect(result).toEqual({
-        sessionId: 'session',
+        sessionId,
         messages: [],
         error: null,
         isLoading: false,
@@ -383,96 +426,63 @@ describe('Response Utils', () => {
       });
     });
 
-    test('should handle null messages', () => {
-      const result = createChatTemplateData('session', null);
+    it('should handle null messages', () => {
+      const sessionId = 'session123';
 
-      expect(result.messages).toEqual([]);
-    });
-  });
+      const result = createChatTemplateData(sessionId, null);
 
-  describe('sendValidationError', () => {
-    test('should send JSON validation error for API requests', () => {
-      sendValidationError(mockRes, 'email', 'Invalid email', true);
-
-      expect(mockRes.status).toHaveBeenCalledWith(400);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        success: false,
-        error: 'Validation failed: Invalid email',
-        details: { field: 'email', message: 'Invalid email' }
+      expect(result).toEqual({
+        sessionId,
+        messages: [],
+        error: null,
+        isLoading: false,
+        pendingMessage: null
       });
-    });
-
-    test('should send error page for non-API requests', () => {
-      sendValidationError(mockRes, 'password', 'Password too short', false);
-
-      expect(mockRes.status).toHaveBeenCalledWith(400);
-      expect(mockRes.render).toHaveBeenCalledWith('error', {
-        error: 'Password too short',
-        theme: 'light'
-      });
-    });
-
-    test('should default to non-API request', () => {
-      sendValidationError(mockRes, 'field', 'Error message');
-
-      expect(mockRes.render).toHaveBeenCalled();
-      expect(mockRes.json).not.toHaveBeenCalled();
     });
   });
 
   describe('isResponseSent', () => {
-    test('should return false when headers not sent', () => {
-      mockRes.headersSent = false;
-
-      const result = isResponseSent(mockRes);
-
-      expect(result).toBe(false);
-    });
-
-    test('should return true when headers sent', () => {
+    it('should return true when headers are sent', () => {
       mockRes.headersSent = true;
 
-      const result = isResponseSent(mockRes);
+      expect(isResponseSent(mockRes)).toBe(true);
+    });
 
-      expect(result).toBe(true);
+    it('should return false when headers are not sent', () => {
+      mockRes.headersSent = false;
+
+      expect(isResponseSent(mockRes)).toBe(false);
     });
   });
 
-  describe('sendRateLimitError', () => {
-    test('should send JSON error for API requests', () => {
-      mockReq.path = '/api/test';
+  describe('Integration Tests', () => {
+    it('should handle complete error flow', () => {
+      const error = new Error('Integration test error');
+      mockReq.path = '/api/integration';
 
-      sendRateLimitError(mockRes);
+      logErrorAndRespond(error, mockRes, 'INTEGRATION', 'Integration failed', 422);
 
-      expect(mockRes.status).toHaveBeenCalledWith(429);
+      expect(logger.error).toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(422);
       expect(mockRes.json).toHaveBeenCalledWith({
         success: false,
-        error: 'Rate limit exceeded'
+        error: 'Integration failed'
       });
     });
 
-    test('should send error page for non-API requests', () => {
-      mockReq.path = '/page';
+    it('should handle chat error with processed messages', () => {
+      const messages = [
+        { role: 'user', content: 'Hello' },
+        { role: 'assistant', content: '**Bold** response' }
+      ];
+      processMessages.mockReturnValue(messages);
 
-      sendRateLimitError(mockRes);
+      sendChatError(mockRes, 'session123', messages, 'Chat failed');
 
-      expect(mockRes.status).toHaveBeenCalledWith(429);
-      expect(mockRes.render).toHaveBeenCalledWith('error', {
-        error: 'Rate limit exceeded',
-        theme: 'light'
-      });
-    });
-
-    test('should use custom message', () => {
-      mockReq.path = '/api/test';
-      const customMessage = 'Custom rate limit message';
-
-      sendRateLimitError(mockRes, customMessage);
-
-      expect(mockRes.json).toHaveBeenCalledWith({
-        success: false,
-        error: customMessage
-      });
+      expect(processMessages).toHaveBeenCalledWith(messages);
+      expect(mockRes.render).toHaveBeenCalledWith('chat', expect.objectContaining({
+        messages: messages
+      }));
     });
   });
 });
