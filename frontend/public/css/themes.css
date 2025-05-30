@@ -287,6 +287,15 @@ body.gptv4-body {
     min-height: 100vh;
     margin: 0;
     overflow-x: hidden;
+
+    /* CSS Variables for consistent theming */
+    --gptv4-border-light: #565869;
+    --gptv4-border: #4d4d4f;
+    --gptv4-surface: #40414f;
+    --gptv4-surface-elevated: #444654;
+    --gptv4-text-primary: #ececf1;
+    --gptv4-text-secondary: #8e8ea0;
+    --gptv4-accent: #6366f1;
 }
 
 .gptv4-root {
@@ -659,6 +668,15 @@ body.gptv4-body-light {
     min-height: 100vh;
     margin: 0;
     overflow-x: hidden;
+
+    /* CSS Variables for consistent theming - Light theme */
+    --gptv4-border-light: #e5e7eb;
+    --gptv4-border: #d1d5db;
+    --gptv4-surface: #ffffff;
+    --gptv4-surface-elevated: #f9fafb;
+    --gptv4-text-primary: #1f1f1f;
+    --gptv4-text-secondary: #6b7280;
+    --gptv4-accent: #6366f1;
 }
 
 body.gptv4-body-light .gptv4-root {

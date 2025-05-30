@@ -261,10 +261,10 @@
     width: 100%;
     min-height: 80px;
     padding: 0.75rem;
-    border: 1px solid var(--gptv4-border-light);
+    border: 1px solid var(--gptv4-border-light, #565869);
     border-radius: 6px;
-    background: var(--gptv4-surface);
-    color: var(--gptv4-text-primary);
+    background: var(--gptv4-surface, #40414f);
+    color: var(--gptv4-text-primary, #ececf1);
     font-size: 0.75rem;
     line-height: 1.4;
     resize: vertical;
@@ -274,12 +274,12 @@
 
 .gptv4-system-prompt-textarea:focus {
     outline: none;
-    border-color: var(--gptv4-accent);
+    border-color: var(--gptv4-accent, #6366f1);
     box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
 }
 
 .gptv4-system-prompt-textarea::placeholder {
-    color: var(--gptv4-text-secondary);
+    color: var(--gptv4-text-secondary, #8e8ea0);
     font-size: 0.75rem;
 }
 
@@ -320,12 +320,12 @@
 
 /* Dark theme adjustments for system prompt */
 body.gptv4-body .gptv4-system-prompt-textarea {
-    background: var(--gptv4-surface-elevated);
-    border-color: var(--gptv4-border);
+    background: var(--gptv4-surface-elevated, #444654);
+    border-color: var(--gptv4-border, #4d4d4f);
 }
 
 body.gptv4-body .gptv4-system-prompt-textarea:focus {
-    border-color: var(--gptv4-accent);
+    border-color: var(--gptv4-accent, #6366f1);
 }
 
 /* System Prompt Indicator in Chat Area */
