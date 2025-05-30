@@ -49,13 +49,12 @@ describe('Database Configuration', () => {
     });
 
     it('should use custom MongoDB URI from environment', async () => {
-      // Mock the constants module to return custom URI
-      jest.doMock('../../src/utils/constants', () => ({
-        MONGODB_URI: 'mongodb://custom:27017/test'
-      }));
+      // URI is set by jest.setup.js
 
-      // Clear the require cache and re-require
+      // Clear require cache and re-require
       delete require.cache[require.resolve('../../src/config/database')];
+      delete require.cache[require.resolve('../../src/utils/constants')];
+
       const { connectDatabase } = require('../../src/config/database');
 
       const spy = jest.spyOn(mongoose, 'connect').mockResolvedValue();
@@ -69,8 +68,9 @@ describe('Database Configuration', () => {
 
       spy.mockRestore();
 
-      // Reset the mock
-      jest.dontMock('../../src/utils/constants');
+      // Clear cache again to avoid interference with other tests
+      delete require.cache[require.resolve('../../src/config/database')];
+      delete require.cache[require.resolve('../../src/utils/constants')];
     });
   });
 

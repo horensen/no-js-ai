@@ -1,6 +1,6 @@
 module.exports = {
   testEnvironment: 'node',
-  setupFilesAfterEnv: ['<rootDir>/tests/setup.js'],
+  setupFilesAfterEnv: ['./tests/jest.setup.js'],
   testMatch: [
     '<rootDir>/tests/**/*.test.js'
   ],
@@ -13,5 +13,11 @@ module.exports = {
     '!**/node_modules/**'
   ],
   testTimeout: 30000,
-  verbose: true
+  verbose: true,
+  coveragePathIgnorePatterns: [
+    '/node_modules/',
+    '/tests/'
+  ],
+  // Add a global teardown to clean up MongoDB InMemory Server if used
+  globalTeardown: './tests/jest.teardown.js',
 };

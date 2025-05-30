@@ -4,8 +4,13 @@ const healthRoutes = require('../../src/routes/healthRoutes');
 const ollamaService = require('../../src/services/ollamaService');
 const mongoose = require('mongoose');
 
-// Mock the Ollama service
+// Mock the Ollama service and mongoose
 jest.mock('../../src/services/ollamaService');
+jest.mock('mongoose', () => ({
+  connection: {
+    readyState: 1 // Mock as connected by default
+  }
+}));
 
 describe('Health Routes', () => {
   let app;

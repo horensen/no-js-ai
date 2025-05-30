@@ -169,12 +169,17 @@ describe('Chat Routes', () => {
       chatService.getAllChatSessions.mockResolvedValue(mockSessions);
       chatService.getOrCreateChatSession.mockRejectedValue(new Error('Database error'));
 
+      // Mock sendErrorPage to send a response
+      sendErrorPage.mockImplementation((res, message) => {
+        res.status(500).send(`Error: ${message}`);
+      });
+
       const response = await request(app)
         .get('/?session=valid-session')
-        .expect(200);
+        .expect(500);
 
       expect(sendErrorPage).toHaveBeenCalledWith(expect.anything(), 'Failed to load chat session');
-    }, 10000);
+    });
 
     it('should use theme from cookies', async () => {
       const mockSessions = [];
@@ -221,21 +226,29 @@ describe('Chat Routes', () => {
       expect(chatService.addMessageToSession).toHaveBeenCalledWith('test-session', 'user', 'Valid message');
     });
 
-    it.skip('should handle invalid session ID', async () => {
+    it('should handle invalid session ID', async () => {
       isValidSessionId.mockReturnValue(false);
+      sendChatError.mockImplementation((res) => {
+        res.status(200).send('<html>error page</html>');
+      });
 
       const response = await request(app)
         .post('/chat')
         .send({ message: 'Hello', sessionId: 'invalid' })
-        .expect(400);
+        .expect(200);
 
       expect(isValidSessionId).toHaveBeenCalledWith('invalid');
+      expect(sendChatError).toHaveBeenCalled();
     }, 10000);
 
-    it.skip('should handle invalid message', async () => {
+    it('should handle invalid message', async () => {
       validateMessage.mockReturnValue({
         valid: false,
         error: 'Message too long'
+      });
+
+      sendChatError.mockImplementation((res) => {
+        res.status(200).send('<html>error page</html>');
       });
 
       const response = await request(app)
@@ -244,25 +257,29 @@ describe('Chat Routes', () => {
         .expect(200);
 
       expect(validateMessage).toHaveBeenCalledWith('Invalid message');
+      expect(sendChatError).toHaveBeenCalled();
     }, 10000);
 
-    it.skip('should handle database error during message validation', async () => {
+    it('should handle database error during message validation', async () => {
       validateMessage.mockReturnValue({
         valid: false,
         error: 'Invalid message'
       });
 
       chatService.getOrCreateChatSession.mockRejectedValue(new Error('Database error'));
+      handleDatabaseError.mockImplementation((err, res) => {
+        res.status(200).send('<html>error page</html>');
+      });
 
       const response = await request(app)
         .post('/chat')
         .send({ message: 'Test message', sessionId: 'valid-session' })
         .expect(200);
 
-      expect(sendErrorPage).toHaveBeenCalled();
+      expect(handleDatabaseError).toHaveBeenCalled();
     }, 10000);
 
-    it.skip('should handle errors during message processing', async () => {
+    it('should handle errors during message processing', async () => {
       chatService.addMessageToSession.mockRejectedValue(new Error('Processing error'));
 
       const mockChat = {
@@ -270,25 +287,31 @@ describe('Chat Routes', () => {
         messages: []
       };
       chatService.getOrCreateChatSession.mockResolvedValue(mockChat);
+      sendChatError.mockImplementation((res) => {
+        res.status(200).send('<html>error page</html>');
+      });
 
       const response = await request(app)
         .post('/chat')
         .send({ message: 'Test message', sessionId: 'valid-session' })
         .expect(200);
 
-      expect(sendErrorPage).toHaveBeenCalled();
+      expect(sendChatError).toHaveBeenCalled();
     }, 10000);
 
-    it.skip('should handle database error during error handling', async () => {
+    it('should handle database error during error handling', async () => {
       chatService.addMessageToSession.mockRejectedValue(new Error('Processing error'));
       chatService.getOrCreateChatSession.mockRejectedValue(new Error('DB Error'));
+      handleDatabaseError.mockImplementation((err, res) => {
+        res.status(200).send('<html>error page</html>');
+      });
 
       const response = await request(app)
         .post('/chat')
         .send({ message: 'Test message', sessionId: 'valid-session' })
         .expect(200);
 
-      expect(sendErrorPage).toHaveBeenCalled();
+      expect(handleDatabaseError).toHaveBeenCalled();
     }, 10000);
   });
 
@@ -340,8 +363,11 @@ describe('Chat Routes', () => {
       expect(getChatRenderData).toHaveBeenCalledWith('test-session', mockChat.messages, null, true, null, 'light');
     });
 
-    it.skip('should handle invalid session ID', async () => {
-      validateSessionIdWithResponse.mockReturnValue(false);
+    it('should handle invalid session ID', async () => {
+      validateSessionIdWithResponse.mockImplementation((sessionId, res) => {
+        res.status(400).json({ error: 'Invalid session ID' });
+        return false;
+      });
 
       const response = await request(app)
         .get('/check-response/invalid-session')
@@ -350,8 +376,11 @@ describe('Chat Routes', () => {
       expect(validateSessionIdWithResponse).toHaveBeenCalledWith('invalid-session', expect.anything());
     }, 10000);
 
-    it.skip('should handle database errors', async () => {
+    it('should handle database errors', async () => {
       chatService.getOrCreateChatSession.mockRejectedValue(new Error('Database error'));
+      sendErrorPage.mockImplementation((res) => {
+        res.status(200).send('<html>error page</html>');
+      });
 
       const response = await request(app)
         .get('/check-response/valid-session')
@@ -442,9 +471,12 @@ describe('Chat Routes', () => {
       );
     });
 
-    it.skip('should handle render errors during error handling', async () => {
+    it('should handle render errors during error handling', async () => {
       chatService.updateSystemPrompt.mockRejectedValue(new Error('Update failed'));
       chatService.getOrCreateChatSession.mockRejectedValue(new Error('Render error'));
+      sendErrorPage.mockImplementation((res) => {
+        res.status(200).send('<html>error page</html>');
+      });
 
       const response = await request(app)
         .post('/system-prompt')
@@ -456,39 +488,75 @@ describe('Chat Routes', () => {
   });
 
   describe('Background AI Processing', () => {
-    it.skip('should process AI response in background', (done) => {
-      const mockChat = {
-        sessionId: 'test-session',
+    it('should process AI response in background', async () => {
+      const sessionId = 'test-session';
+      const userMessage = 'Hello';
+      const aiResponse = 'AI response';
+
+      const mockChatWithUserMessage = {
+        sessionId,
         messages: [
-          { role: 'user', content: 'Hello' }
-        ]
+          { role: 'user', content: userMessage }
+        ],
+        systemPrompt: 'Test prompt'
       };
 
-      chatService.getOrCreateChatSession.mockResolvedValue(mockChat);
-      chatService.addMessageToSession.mockResolvedValue(mockChat);
-      ollamaService.callOllama.mockResolvedValue('AI response');
+      const mockChatWithHistory = {
+        sessionId,
+        messages: [
+          { role: 'user', content: userMessage }
+        ],
+        systemPrompt: 'Test prompt'
+      };
 
-      // Mock the background processing
-      setTimeout(() => {
-        expect(ollamaService.callOllama).toHaveBeenCalled();
-        expect(chatService.addMessageToSession).toHaveBeenCalledWith(
-          'test-session',
-          'assistant',
-          'AI response'
-        );
-        done();
-      }, 100);
+      // Mock services for the main request
+      chatService.addMessageToSession.mockResolvedValue(mockChatWithUserMessage);
+      chatService.getAllChatSessions.mockResolvedValue([
+        { sessionId, title: 'Test Chat' }
+      ]);
 
-      request(app)
+      // Mock services for background processing
+      chatService.getOrCreateChatSession.mockResolvedValue(mockChatWithHistory);
+      ollamaService.callOllama.mockResolvedValue(aiResponse);
+
+      // Make the initial request
+      const response = await request(app)
         .post('/chat')
         .send({
-          message: 'Hello',
-          sessionId: 'test-session'
+          message: userMessage,
+          sessionId
         })
-        .expect(200)
-        .end(() => {
-          // Test initiated, background processing should start
-        });
-    });
+        .expect(200);
+
+      // Verify immediate response was sent
+      expect(chatService.addMessageToSession).toHaveBeenCalledWith(sessionId, 'user', 'Valid message');
+      expect(getChatRenderData).toHaveBeenCalledWith(
+        sessionId,
+        mockChatWithUserMessage.messages,
+        null,
+        true, // isProcessing = true
+        'Valid message',
+        'light'
+      );
+
+      // Wait for background processing to complete
+      // We need to wait for setImmediate to execute
+      await new Promise(resolve => setImmediate(resolve));
+
+      // Give a bit more time for async operations to complete
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      // Verify background processing calls
+      expect(ollamaService.callOllama).toHaveBeenCalledWith(
+        mockChatWithHistory.messages,
+        null,
+        mockChatWithHistory.systemPrompt
+      );
+      expect(chatService.addMessageToSession).toHaveBeenCalledWith(
+        sessionId,
+        'assistant',
+        aiResponse
+      );
+    }, 15000);
   });
 });

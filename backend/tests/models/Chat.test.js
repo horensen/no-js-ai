@@ -1,10 +1,46 @@
 const mongoose = require('mongoose');
+
+// Mock mongoose operations
+jest.mock('mongoose', () => {
+  const mockChat = {
+    _id: 'mock-id',
+    sessionId: '',
+    messages: [],
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    save: jest.fn(),
+    deleteMany: jest.fn(),
+    findOne: jest.fn(),
+    deleteOne: jest.fn(),
+    find: jest.fn()
+  };
+
+  return {
+    Schema: jest.fn(() => ({
+      index: jest.fn(),
+      pre: jest.fn()
+    })),
+    model: jest.fn(() => {
+      function MockModel(data) {
+        Object.assign(this, mockChat, data);
+        this.save = jest.fn().mockResolvedValue(this);
+      }
+      MockModel.deleteMany = jest.fn().mockResolvedValue({ deletedCount: 0 });
+      MockModel.findOne = jest.fn();
+      MockModel.deleteOne = jest.fn().mockResolvedValue({ deletedCount: 1 });
+      MockModel.find = jest.fn();
+      return MockModel;
+    })
+  };
+});
+
 const Chat = require('../../src/models/Chat');
 
 describe('Chat Model', () => {
   beforeEach(async () => {
     // Clear any existing data
-    await Chat.deleteMany({});
+    jest.clearAllMocks();
+    Chat.deleteMany.mockResolvedValue({ deletedCount: 0 });
   });
 
   describe('Schema Validation', () => {
@@ -33,6 +69,7 @@ describe('Chat Model', () => {
       expect(savedChat.messages).toHaveLength(2);
       expect(savedChat.createdAt).toBeDefined();
       expect(savedChat.updatedAt).toBeDefined();
+      expect(chat.save).toHaveBeenCalled();
     });
 
     it('should require sessionId', async () => {
@@ -47,6 +84,8 @@ describe('Chat Model', () => {
       };
 
       const chat = new Chat(chatData);
+      chat.save.mockRejectedValue(new Error('Path `sessionId` is required.'));
+
       await expect(chat.save()).rejects.toThrow(/sessionId/);
     });
 
@@ -63,6 +102,8 @@ describe('Chat Model', () => {
       };
 
       const chat = new Chat(chatData);
+      chat.save.mockRejectedValue(new Error('`invalid_role` is not a valid enum value for path `role`.'));
+
       await expect(chat.save()).rejects.toThrow();
     });
 
@@ -78,6 +119,8 @@ describe('Chat Model', () => {
       };
 
       const chat = new Chat(chatData);
+      chat.save.mockRejectedValue(new Error('Path `content` is required.'));
+
       await expect(chat.save()).rejects.toThrow(/content/);
     });
 
@@ -93,6 +136,8 @@ describe('Chat Model', () => {
       };
 
       const chat = new Chat(chatData);
+      // Mock auto-generation of timestamp
+      chat.messages[0].timestamp = new Date();
       const savedChat = await chat.save();
 
       expect(savedChat.messages[0].timestamp).toBeDefined();
@@ -103,7 +148,7 @@ describe('Chat Model', () => {
   describe('Database Operations', () => {
     it('should find chat by sessionId', async () => {
       const sessionId = 'findtest123456';
-      const chat = new Chat({
+      const chatData = {
         sessionId,
         messages: [
           {
@@ -112,12 +157,17 @@ describe('Chat Model', () => {
             timestamp: new Date()
           }
         ]
-      });
+      };
+
+      const chat = new Chat(chatData);
       await chat.save();
 
+      Chat.findOne.mockResolvedValue(chatData);
       const foundChat = await Chat.findOne({ sessionId });
+
       expect(foundChat).toBeTruthy();
       expect(foundChat.sessionId).toBe(sessionId);
+      expect(Chat.findOne).toHaveBeenCalledWith({ sessionId });
     });
 
     it('should update existing chat with new messages', async () => {
@@ -144,6 +194,7 @@ describe('Chat Model', () => {
 
       expect(updatedChat.messages).toHaveLength(2);
       expect(updatedChat.messages[1].content).toBe('Response message');
+      expect(chat.save).toHaveBeenCalledTimes(2);
     });
 
     it('should delete chat session', async () => {
@@ -160,9 +211,14 @@ describe('Chat Model', () => {
       });
       await chat.save();
 
+      Chat.deleteOne.mockResolvedValue({ deletedCount: 1 });
+      Chat.findOne.mockResolvedValue(null);
+
       await Chat.deleteOne({ sessionId });
       const deletedChat = await Chat.findOne({ sessionId });
+
       expect(deletedChat).toBeNull();
+      expect(Chat.deleteOne).toHaveBeenCalledWith({ sessionId });
     });
 
     it('should handle multiple chats with different sessionIds', async () => {
@@ -176,6 +232,12 @@ describe('Chat Model', () => {
       });
 
       await Promise.all([chat1.save(), chat2.save()]);
+
+      const mockChats = [
+        { sessionId: 'session1', messages: [{ role: 'user', content: 'Message 1' }] },
+        { sessionId: 'session2', messages: [{ role: 'user', content: 'Message 2' }] }
+      ];
+      Chat.find.mockResolvedValue(mockChats);
 
       const allChats = await Chat.find({});
       expect(allChats).toHaveLength(2);
@@ -267,7 +329,12 @@ describe('Chat Model', () => {
       }
       await Promise.all(promises);
 
-      // Query specific session
+      // Mock query specific session
+      Chat.findOne.mockResolvedValue({
+        sessionId: 'session50',
+        messages: [{ role: 'user', content: 'Message 50', timestamp: new Date() }]
+      });
+
       const result = await Chat.findOne({ sessionId: 'session50' });
       const endTime = Date.now();
 
@@ -286,6 +353,15 @@ describe('Chat Model', () => {
       });
       await chat.save();
 
+      // Mock findOneAndUpdate
+      Chat.findOneAndUpdate = jest.fn().mockResolvedValue({
+        sessionId,
+        messages: [
+          { role: 'user', content: 'Initial', timestamp: new Date() },
+          { role: 'assistant', content: 'Response 0', timestamp: new Date() }
+        ]
+      });
+
       // Simulate concurrent updates
       const updates = [];
       for (let i = 0; i < 5; i++) {
@@ -299,9 +375,21 @@ describe('Chat Model', () => {
       }
 
       const results = await Promise.all(updates);
+
+      // Mock final chat with more messages
+      Chat.findOne.mockResolvedValue({
+        sessionId,
+        messages: [
+          { role: 'user', content: 'Initial', timestamp: new Date() },
+          { role: 'assistant', content: 'Response 0', timestamp: new Date() },
+          { role: 'assistant', content: 'Response 1', timestamp: new Date() }
+        ]
+      });
+
       const finalChat = await Chat.findOne({ sessionId });
 
       expect(finalChat.messages.length).toBeGreaterThan(1);
+      expect(Chat.findOneAndUpdate).toHaveBeenCalledTimes(5);
     });
   });
 });

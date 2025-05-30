@@ -62,6 +62,17 @@ describe('Sessions Routes', () => {
     sendErrorPage.mockImplementation((res, message) => {
       res.status(500).json({ error: message });
     });
+
+    // Reset validateSessionIdWithResponse to default behavior
+    validateSessionIdWithResponse.mockReturnValue(true);
+
+    // Mock other utilities with default behavior
+    getChatRenderData.mockReturnValue({
+      sessions: [],
+      currentSessionId: null,
+      noSessions: true,
+      theme: 'light'
+    });
   });
 
   describe('GET /api/sessions', () => {
@@ -111,16 +122,6 @@ describe('Sessions Routes', () => {
   });
 
   describe('POST /sessions/:sessionId/delete', () => {
-    beforeEach(() => {
-      validateSessionIdWithResponse.mockReturnValue(true);
-      getChatRenderData.mockReturnValue({
-        sessions: [],
-        currentSessionId: null,
-        noSessions: true,
-        theme: 'light'
-      });
-    });
-
     it('should delete session and redirect to most recent remaining session', async () => {
       const sessionId = 'session-to-delete';
       const remainingSessions = [
@@ -170,14 +171,18 @@ describe('Sessions Routes', () => {
 
     it('should handle invalid session ID', async () => {
       const sessionId = 'invalid-session';
-      validateSessionIdWithResponse.mockReturnValue(false);
+      validateSessionIdWithResponse.mockImplementation((sessionId, res) => {
+        res.status(400).json({ error: 'Invalid session ID' });
+        return false;
+      });
 
       const response = await request(app)
-        .post(`/sessions/${sessionId}/delete`);
+        .post(`/sessions/${sessionId}/delete`)
+        .expect(400);
 
       expect(validateSessionIdWithResponse).toHaveBeenCalledWith(sessionId, expect.any(Object));
       expect(chatService.deleteChatSession).not.toHaveBeenCalled();
-    }, 10000);
+    });
 
     it('should handle deletion errors', async () => {
       const sessionId = 'session-with-error';
@@ -241,29 +246,35 @@ describe('Sessions Routes', () => {
 
   describe('Error Handling', () => {
     it('should handle malformed session deletion requests', async () => {
-      validateSessionIdWithResponse.mockReturnValue(false);
+      validateSessionIdWithResponse.mockImplementation((sessionId, res) => {
+        res.status(400).json({ error: 'Malformed session ID' });
+        return false;
+      });
 
       const response = await request(app)
         .post('/sessions/malformed-id/delete')
         .expect(400);
 
       expect(validateSessionIdWithResponse).toHaveBeenCalled();
-    }, 10000);
+    });
 
     it('should handle concurrent session operations', async () => {
       const sessionId = 'concurrent-session';
       chatService.deleteChatSession.mockResolvedValue(true);
       chatService.getAllChatSessions.mockResolvedValue([]);
 
+      // Reset validateSessionIdWithResponse to return true for this test
+      validateSessionIdWithResponse.mockReturnValue(true);
+
       const promises = [
-        request(app).post(`/sessions/${sessionId}/delete`),
-        request(app).post(`/sessions/${sessionId}/delete`)
+        request(app).post(`/sessions/${sessionId}/delete`).expect(200),
+        request(app).post(`/sessions/${sessionId}/delete`).expect(200)
       ];
 
       const responses = await Promise.all(promises);
 
       expect(responses[0].status).toBe(200);
       expect(responses[1].status).toBe(200);
-    }, 10000);
+    });
   });
 });
