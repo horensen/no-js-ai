@@ -37,11 +37,16 @@ router.get('/', asyncHandler(async (req, res) => {
   // If no session provided and no sessions exist, show empty state
   if (!sessionId && formattedSessions.length === 0) {
     logger.debug('No session provided and no sessions exist, showing empty state', 'CHAT_ROUTES');
+
+    // Load available models for model selection
+    const availableModels = await ollamaService.getAvailableModels();
+
     const renderData = getChatRenderData(null, [], null, false, null, theme);
     renderData.sessions = [];
     renderData.currentSessionId = null;
     renderData.noSessions = true;
     renderData.systemPrompt = '';
+    renderData.availableModels = availableModels;
     return res.render('chat', renderData);
   }
 
@@ -64,6 +69,9 @@ router.get('/', asyncHandler(async (req, res) => {
     // Load current chat session
     const chat = await chatService.getOrCreateChatSession(sessionId);
 
+    // Load available models for model selection
+    const availableModels = await ollamaService.getAvailableModels();
+
     logger.debug(`Successfully loaded/created session ${sessionId}, message count: ${chat.messages.length}`, 'CHAT_ROUTES');
 
     // Include sessions and system prompt in render data for server-side rendering
@@ -71,6 +79,25 @@ router.get('/', asyncHandler(async (req, res) => {
     renderData.sessions = formattedSessions;
     renderData.currentSessionId = sessionId;
     renderData.systemPrompt = chat.systemPrompt || '';
+
+    // Handle model selection with fallback logic
+    let selectedModel = chat.selectedModel || '';
+    const modelExists = availableModels.some(model => model.name === selectedModel);
+    if (!modelExists && availableModels.length > 0) {
+      selectedModel = availableModels[0].name;
+      logger.debug(`Selected model ${chat.selectedModel} not found, falling back to ${selectedModel}`, 'CHAT_ROUTES');
+
+      // Persist the fallback model to the database for consistency
+      try {
+        await chatService.updateSelectedModel(sessionId, selectedModel);
+        logger.debug(`Updated database with fallback model: ${selectedModel}`, 'CHAT_ROUTES');
+      } catch (fallbackError) {
+        logger.error('Error updating fallback model in database', 'CHAT_ROUTES', fallbackError);
+      }
+    }
+
+    renderData.selectedModel = selectedModel;
+    renderData.availableModels = availableModels;
 
     res.render('chat', renderData);
   } catch (error) {
@@ -86,7 +113,8 @@ router.post('/chat', asyncHandler(async (req, res) => {
 
   // Validate session ID - for POST /chat we want to send a chat error, not error page
   if (!isValidSessionId(sessionId)) {
-    return sendChatError(res, sessionId, [], 'Invalid session format.', [], false, theme);
+    const availableModels = await ollamaService.getAvailableModels();
+    return sendChatError(res, sessionId, [], 'Invalid session format.', [], false, theme, availableModels, '');
   }
 
   // Validate message
@@ -96,7 +124,8 @@ router.post('/chat', asyncHandler(async (req, res) => {
       const chat = await chatService.getOrCreateChatSession(sessionId);
       const allSessions = await chatService.getAllChatSessions();
       const formattedSessions = allSessions.map(formatSessionForAPI);
-      return sendChatError(res, sessionId, chat.messages, validation.error, formattedSessions, false, theme);
+      const availableModels = await ollamaService.getAvailableModels();
+      return sendChatError(res, sessionId, chat.messages, validation.error, formattedSessions, false, theme, availableModels, chat.selectedModel || '');
     } catch (dbError) {
       handleDatabaseError(dbError, res);
       return;
@@ -111,11 +140,33 @@ router.post('/chat', asyncHandler(async (req, res) => {
     const allSessions = await chatService.getAllChatSessions();
     const formattedSessions = allSessions.map(formatSessionForAPI);
 
+    // Load available models for model selection
+    const availableModels = await ollamaService.getAvailableModels();
+
     // Show loading page with user message immediately visible
     const renderData = getChatRenderData(sessionId, chatWithUserMessage.messages, null, true, validation.message, theme);
     renderData.sessions = formattedSessions;
     renderData.currentSessionId = sessionId;
     renderData.systemPrompt = chatWithUserMessage.systemPrompt || '';
+
+    // Handle model selection with fallback logic
+    let selectedModel = chatWithUserMessage.selectedModel || '';
+    const modelExists = availableModels.some(model => model.name === selectedModel);
+    if (!modelExists && availableModels.length > 0) {
+      selectedModel = availableModels[0].name;
+      logger.debug(`Selected model ${chatWithUserMessage.selectedModel} not found, falling back to ${selectedModel}`, 'CHAT_ROUTES');
+
+      // Persist the fallback model to the database for consistency
+      try {
+        await chatService.updateSelectedModel(sessionId, selectedModel);
+        logger.debug(`Updated database with fallback model: ${selectedModel}`, 'CHAT_ROUTES');
+      } catch (fallbackError) {
+        logger.error('Error updating fallback model in database', 'CHAT_ROUTES', fallbackError);
+      }
+    }
+
+    renderData.selectedModel = selectedModel;
+    renderData.availableModels = availableModels;
     renderData.isProcessing = true; // Flag to indicate AI is processing
     renderData.scrollToAnchor = 'loading-anchor';
     renderData.messageCountBeforeAI = chatWithUserMessage.messages.length; // Track message count for polling
@@ -131,7 +182,7 @@ router.post('/chat', asyncHandler(async (req, res) => {
         // Pass the conversation history and system prompt to Ollama for context
         const aiResponse = await ollamaService.callOllama(
           chatWithHistory.messages,
-          null,
+          chatWithHistory.selectedModel || null,
           chatWithHistory.systemPrompt || ''
         );
         await chatService.addMessageToSession(sessionId, 'assistant', aiResponse);
@@ -152,7 +203,8 @@ router.post('/chat', asyncHandler(async (req, res) => {
       const chat = await chatService.getOrCreateChatSession(sessionId);
       const allSessions = await chatService.getAllChatSessions();
       const formattedSessions = allSessions.map(formatSessionForAPI);
-      sendChatError(res, sessionId, chat.messages, error.message || 'An error occurred while processing your message', formattedSessions, false, theme);
+      const availableModels = await ollamaService.getAvailableModels();
+      sendChatError(res, sessionId, chat.messages, error.message || 'An error occurred while processing your message', formattedSessions, false, theme, availableModels, chat.selectedModel || '');
     } catch (dbError) {
       handleDatabaseError(dbError, res);
     }
@@ -170,6 +222,9 @@ router.get('/check-response/:sessionId', asyncHandler(async (req, res) => {
     const chat = await chatService.getOrCreateChatSession(sessionId);
     const allSessions = await chatService.getAllChatSessions();
     const formattedSessions = allSessions.map(formatSessionForAPI);
+
+    // Load available models for model selection
+    const availableModels = await ollamaService.getAvailableModels();
 
     // Get the expected message count from query parameter (if available)
     const expectedCount = parseInt(req.query.count) || 0;
@@ -190,6 +245,25 @@ router.get('/check-response/:sessionId', asyncHandler(async (req, res) => {
       renderData.sessions = formattedSessions;
       renderData.currentSessionId = sessionId;
       renderData.systemPrompt = chat.systemPrompt || '';
+
+      // Handle model selection with fallback logic
+      let selectedModel = chat.selectedModel || '';
+      const modelExists = availableModels.some(model => model.name === selectedModel);
+      if (!modelExists && availableModels.length > 0) {
+        selectedModel = availableModels[0].name;
+        logger.debug(`Selected model ${chat.selectedModel} not found, falling back to ${selectedModel}`, 'CHAT_ROUTES');
+
+        // Persist the fallback model to the database for consistency
+        try {
+          await chatService.updateSelectedModel(sessionId, selectedModel);
+          logger.debug(`Updated database with fallback model: ${selectedModel}`, 'CHAT_ROUTES');
+        } catch (fallbackError) {
+          logger.error('Error updating fallback model in database', 'CHAT_ROUTES', fallbackError);
+        }
+      }
+
+      renderData.selectedModel = selectedModel;
+      renderData.availableModels = availableModels;
       renderData.responseComplete = true;
 
       res.render('chat', renderData);
@@ -199,6 +273,25 @@ router.get('/check-response/:sessionId', asyncHandler(async (req, res) => {
       renderData.sessions = formattedSessions;
       renderData.currentSessionId = sessionId;
       renderData.systemPrompt = chat.systemPrompt || '';
+
+      // Handle model selection with fallback logic
+      let selectedModel = chat.selectedModel || '';
+      const modelExists = availableModels.some(model => model.name === selectedModel);
+      if (!modelExists && availableModels.length > 0) {
+        selectedModel = availableModels[0].name;
+        logger.debug(`Selected model ${chat.selectedModel} not found, falling back to ${selectedModel}`, 'CHAT_ROUTES');
+
+        // Persist the fallback model to the database for consistency
+        try {
+          await chatService.updateSelectedModel(sessionId, selectedModel);
+          logger.debug(`Updated database with fallback model: ${selectedModel}`, 'CHAT_ROUTES');
+        } catch (fallbackError) {
+          logger.error('Error updating fallback model in database', 'CHAT_ROUTES', fallbackError);
+        }
+      }
+
+      renderData.selectedModel = selectedModel;
+      renderData.availableModels = availableModels;
       renderData.isProcessing = true;
       renderData.scrollToAnchor = 'loading-anchor';
       renderData.expectedMessageCount = expectedCount || currentCount; // Track for next check
@@ -214,40 +307,65 @@ router.get('/check-response/:sessionId', asyncHandler(async (req, res) => {
 
 // Update system prompt
 router.post('/system-prompt', asyncHandler(async (req, res) => {
-  const { systemPrompt, sessionId } = req.body;
+  const { sessionId, systemPrompt } = req.body;
+  const theme = req.cookies.theme || 'light';
 
-  // Validate session ID
-  if (!isValidSessionId(sessionId)) {
-    return res.status(400).json({
-      success: false,
-      error: 'Invalid session format.'
-    });
-  }
+  if (!validateSessionIdWithResponse(sessionId, res)) return;
 
   try {
-    // Update system prompt
     await chatService.updateSystemPrompt(sessionId, systemPrompt || '');
-
-    // Redirect back to the chat session
     res.redirect(`/?session=${sessionId}`);
   } catch (error) {
     logger.error('Error updating system prompt', 'CHAT_ROUTES', error);
-
-    // Try to render the chat page with error
     try {
       const chat = await chatService.getOrCreateChatSession(sessionId);
       const allSessions = await chatService.getAllChatSessions();
       const formattedSessions = allSessions.map(formatSessionForAPI);
-      const theme = req.cookies.theme || 'light';
+      const availableModels = await ollamaService.getAvailableModels();
+      sendChatError(res, sessionId, chat.messages, error.message || 'Failed to update system prompt', formattedSessions, false, theme, availableModels, chat.selectedModel || '');
+    } catch (dbError) {
+      handleDatabaseError(dbError, res);
+    }
+  }
+}));
 
-      const renderData = getChatRenderData(sessionId, chat.messages, error.message || 'Failed to update system prompt', false, null, theme);
-      renderData.sessions = formattedSessions;
-      renderData.currentSessionId = sessionId;
-      renderData.systemPrompt = chat.systemPrompt || '';
+// Update selected model for a session
+router.post('/model-selection', asyncHandler(async (req, res) => {
+  const { sessionId, selectedModel } = req.body;
+  const theme = req.cookies.theme || 'light';
 
-      res.render('chat', renderData);
-    } catch (renderError) {
-      sendErrorPage(res, 'Failed to update system prompt');
+  logger.debug(`Model selection request - Session: ${sessionId}, Model: ${selectedModel}`, 'CHAT_ROUTES');
+
+  if (!validateSessionIdWithResponse(sessionId, res)) return;
+
+  try {
+    // Validate that the selected model is available
+    const availableModels = await ollamaService.getAvailableModels();
+    const modelExists = availableModels.some(model => model.name === selectedModel);
+
+    if (!modelExists && selectedModel) {
+      throw new Error(`Selected model "${selectedModel}" is not available`);
+    }
+
+    await chatService.updateSelectedModel(sessionId, selectedModel);
+
+    logger.debug(`Successfully updated model for session ${sessionId} to ${selectedModel}`, 'CHAT_ROUTES');
+
+    // Add debugging to verify the update was successful
+    const verificationChat = await chatService.getOrCreateChatSession(sessionId);
+    logger.debug(`Verification: model in database is now: ${verificationChat.selectedModel}`, 'CHAT_ROUTES');
+
+    res.redirect(`/?session=${sessionId}`);
+  } catch (error) {
+    logger.error('Error updating selected model', 'CHAT_ROUTES', error);
+    try {
+      const chat = await chatService.getOrCreateChatSession(sessionId);
+      const allSessions = await chatService.getAllChatSessions();
+      const formattedSessions = allSessions.map(formatSessionForAPI);
+      const availableModels = await ollamaService.getAvailableModels();
+      sendChatError(res, sessionId, chat.messages, error.message || 'Failed to update selected model', formattedSessions, false, theme, availableModels, chat.selectedModel || '');
+    } catch (dbError) {
+      handleDatabaseError(dbError, res);
     }
   }
 }));

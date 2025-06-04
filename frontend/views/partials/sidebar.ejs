@@ -25,6 +25,37 @@
             </div>
         </form>
     </div>
+
+    <!-- Model Selection Section -->
+    <div class="gptv4-model-selection-section">
+        <h3 class="gptv4-model-selection-title">AI Model</h3>
+        <form action="/model-selection" method="post" class="gptv4-model-selection-form">
+            <input type="hidden" name="sessionId" value="<%= currentSessionId %>">
+            <div class="gptv4-model-dropdown-container">
+                <select name="selectedModel" class="gptv4-model-dropdown">
+                    <% if (locals.availableModels && locals.availableModels.length > 0) { %>
+                        <% locals.availableModels.forEach(function(model) { %>
+                            <option value="<%= model.name %>" <%= (locals.selectedModel === model.name) ? 'selected' : '' %>>
+                                <%= model.name.length > 50 ? model.name.substring(0, 50) + '...' : model.name %>
+                            </option>
+                        <% }); %>
+                    <% } else { %>
+                        <option value="" disabled selected>No models available</option>
+                    <% } %>
+                </select>
+                <button type="submit" class="gptv4-model-submit-btn">Change</button>
+            </div>
+        </form>
+        <div class="gptv4-model-info">
+            <% if (locals.availableModels && locals.availableModels.length > 0) { %>
+                <small>Current: <span id="current-model" title="<%= locals.selectedModel || 'None selected' %>">
+                    <%= locals.selectedModel ? (locals.selectedModel.length > 30 ? locals.selectedModel.substring(0, 30) + '...' : locals.selectedModel) : 'None selected' %>
+                </span></small>
+            <% } else { %>
+                <small>Current: <span id="current-model">No models available</span></small>
+            <% } %>
+        </div>
+    </div>
     <% } %>
 
     <div class="gptv4-sidebar-sessions">

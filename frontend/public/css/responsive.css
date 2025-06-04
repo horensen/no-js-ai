@@ -136,6 +136,23 @@
     body {
         padding-bottom: 80px;
     }
+
+    /* Model dropdown mobile adjustments */
+    .gptv4-model-dropdown-container {
+        flex-direction: column;
+        gap: 0.5rem;
+        align-items: stretch;
+    }
+
+    .gptv4-model-dropdown {
+        width: 100%;
+        min-width: 0;
+        font-size: 0.8rem;
+    }
+
+    .gptv4-model-submit-btn {
+        width: 100%;
+    }
 }
 
 /* Small mobile devices */
@@ -187,6 +204,22 @@
     .gptv4-message-row[data-role="assistant"] .gptv4-message-content {
         max-width: 90% !important;
     }
+
+    /* Model dropdown small mobile adjustments */
+    .gptv4-model-selection-section {
+        padding: 0.75rem;
+    }
+
+    .gptv4-model-dropdown {
+        font-size: 0.75rem;
+        padding: 0.6rem;
+        padding-right: 2rem;
+    }
+
+    .gptv4-model-submit-btn {
+        font-size: 0.7rem;
+        padding: 0.4rem 0.6rem;
+    }
 }
 
 /* Very small mobile devices */
@@ -232,6 +265,29 @@
     .gptv4-welcome h1 {
         font-size: 1.6rem;
         margin-bottom: 1rem;
+    }
+
+    /* Model dropdown very small mobile adjustments */
+    .gptv4-model-selection-section {
+        padding: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .gptv4-model-dropdown {
+        font-size: 0.7rem;
+        padding: 0.5rem;
+        padding-right: 1.8rem;
+        background-size: 1rem;
+        background-position: right 0.5rem center;
+    }
+
+    .gptv4-model-submit-btn {
+        font-size: 0.65rem;
+        padding: 0.35rem 0.5rem;
+    }
+
+    .gptv4-model-info {
+        font-size: 0.65rem;
     }
 
     .gptv4-message-bubble {

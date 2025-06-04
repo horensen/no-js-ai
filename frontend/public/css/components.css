@@ -239,16 +239,19 @@
 
 /* System Prompt Section */
 .gptv4-system-prompt-section {
+    margin-bottom: 1.5rem;
     padding: 1rem;
-    margin-bottom: 1rem;
-    border-bottom: 1px solid var(--gptv4-border-light);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
 }
 
 .gptv4-system-prompt-title {
-    font-size: 0.875rem;
+    font-size: 0.9rem;
     font-weight: 600;
     margin-bottom: 0.75rem;
-    color: var(--gptv4-text-primary);
+    color: #8e8ea0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .gptv4-system-prompt-form {
@@ -261,71 +264,171 @@
     width: 100%;
     min-height: 80px;
     padding: 0.75rem;
-    border: 1px solid var(--gptv4-border-light, #565869);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 6px;
-    background: var(--gptv4-surface, #40414f);
-    color: var(--gptv4-text-primary, #ececf1);
-    font-size: 0.75rem;
-    line-height: 1.4;
+    color: #ececf1;
+    font-size: 0.875rem;
+    line-height: 1.5;
     resize: vertical;
-    font-family: inherit;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    transition: all 0.2s ease;
 }
 
 .gptv4-system-prompt-textarea:focus {
     outline: none;
-    border-color: var(--gptv4-accent, #6366f1);
-    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+    border-color: #10a37f;
+    box-shadow: 0 0 0 1px #10a37f;
 }
 
 .gptv4-system-prompt-textarea::placeholder {
-    color: var(--gptv4-text-secondary, #8e8ea0);
-    font-size: 0.75rem;
+    color: #8e8ea0;
+    opacity: 0.7;
 }
 
 .gptv4-system-prompt-actions {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.75rem;
 }
 
 .gptv4-system-prompt-btn {
-    background: transparent;
+    background: #10a37f;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.gptv4-system-prompt-btn:hover {
+    background: #0d8a6b;
+}
+
+.gptv4-system-prompt-btn:active {
+    transform: scale(0.98);
+}
+
+.gptv4-system-prompt-char-count {
+    font-size: 0.75rem;
+    color: #8e8ea0;
+    white-space: nowrap;
+}
+
+/* Model Selection Section */
+.gptv4-model-selection-section {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.gptv4-model-selection-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: #8e8ea0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.gptv4-model-selection-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.gptv4-model-dropdown-container {
+    position: relative;
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.gptv4-model-dropdown {
+    flex: 1;
+    padding: 0.75rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
     color: #ececf1;
-    border: 1px solid #ececf1;
-    padding: 0.5rem 0.875rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ececf1' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 0.75rem center;
+    background-repeat: no-repeat;
+    background-size: 1.25rem;
+    padding-right: 2.5rem;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.gptv4-model-dropdown:focus {
+    outline: none;
+    border-color: #10a37f;
+    box-shadow: 0 0 0 1px #10a37f;
+}
+
+.gptv4-model-dropdown option {
+    background: #40414f;
+    color: #ececf1;
+    padding: 0.5rem;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    word-break: break-word;
+    line-height: 1.4;
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.gptv4-model-info {
+    font-size: 0.75rem;
+    color: #8e8ea0;
+    margin-top: 0.5rem;
+}
+
+.gptv4-model-info #current-model {
+    color: #ececf1;
+    font-weight: 500;
+}
+
+.gptv4-model-submit-btn {
+    background: #10a37f;
+    color: white;
+    border: none;
+    padding: 0.5rem 0.75rem;
     border-radius: 6px;
     font-size: 0.75rem;
     font-weight: 500;
     cursor: pointer;
-    transition: background-color 0.2s ease, transform 0.1s ease;
+    transition: all 0.2s ease;
     white-space: nowrap;
+    flex-shrink: 0;
 }
 
-.gptv4-system-prompt-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
-    transform: translateY(-1px);
+.gptv4-model-submit-btn:hover {
+    background: #0d8a6b;
 }
 
-.gptv4-system-prompt-btn:active {
-    transform: translateY(0);
-}
-
-.gptv4-system-prompt-char-count {
-    font-size: 0.7rem;
-    color: var(--gptv4-text-secondary);
-    white-space: nowrap;
-}
-
-/* Dark theme adjustments for system prompt */
-body.gptv4-body .gptv4-system-prompt-textarea {
-    background: var(--gptv4-surface-elevated, #444654);
-    border-color: var(--gptv4-border, #4d4d4f);
-}
-
-body.gptv4-body .gptv4-system-prompt-textarea:focus {
-    border-color: var(--gptv4-accent, #6366f1);
+.gptv4-model-submit-btn:active {
+    transform: scale(0.98);
 }
 
 /* System Prompt Indicator in Chat Area */
@@ -393,4 +496,20 @@ body.gptv4-body-light .gptv4-system-prompt-btn {
 
 body.gptv4-body-light .gptv4-system-prompt-btn:hover {
     background: rgba(0, 0, 0, 0.1);
+}
+
+/* Light theme override for model submit button */
+body.gptv4-body-light .gptv4-model-submit-btn {
+    background: #10a37f;
+    color: white;
+}
+
+body.gptv4-body-light .gptv4-model-submit-btn:hover {
+    background: #0d8a6b;
+}
+
+/* Additional constraints for model dropdown when opened */
+.gptv4-model-dropdown-container select {
+    max-width: 100% !important;
+    width: 100% !important;
 }

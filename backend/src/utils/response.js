@@ -48,10 +48,19 @@ function sendError(res, message, status = HTTP_STATUS.BAD_REQUEST, details = nul
  * @param {Array} sessions - Available sessions for sidebar
  * @param {boolean} isLoading - Loading state
  * @param {string} theme - Theme preference
+ * @param {Array} availableModels - Available Ollama models
+ * @param {string} selectedModel - Currently selected model
  */
-function sendChatError(res, sessionId, messages, errorMessage, sessions = [], isLoading = false, theme = 'light') {
+function sendChatError(res, sessionId, messages, errorMessage, sessions = [], isLoading = false, theme = 'light', availableModels = [], selectedModel = '') {
   // Process messages for markdown rendering
   const processedMessages = processMessages(messages || []);
+
+  // Handle model selection with fallback logic
+  let modelToUse = selectedModel;
+  const modelExists = availableModels.some(model => model.name === modelToUse);
+  if (!modelExists && availableModels.length > 0) {
+    modelToUse = availableModels[0].name;
+  }
 
   res.render('chat', {
     sessionId,
@@ -61,7 +70,9 @@ function sendChatError(res, sessionId, messages, errorMessage, sessions = [], is
     pendingMessage: null,
     sessions: sessions,
     currentSessionId: sessionId,
-    theme
+    theme,
+    availableModels,
+    selectedModel: modelToUse
   });
 }
 

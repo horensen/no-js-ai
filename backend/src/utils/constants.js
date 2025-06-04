@@ -46,7 +46,7 @@ const DATABASE_CONFIG = {
 // Ollama configuration
 const OLLAMA_CONFIG = {
   URL: validateEnvVar('OLLAMA_URL', 'http://localhost:11434'),
-  DEFAULT_MODEL: validateEnvVar('OLLAMA_MODEL', 'llama3.2'),
+  DEFAULT_MODEL: validateEnvVar('OLLAMA_MODEL', 'llama3.2:latest'),
   REQUEST_TIMEOUT: parsePositiveInt(process.env.OLLAMA_TIMEOUT, 60000),
   STREAMING_TIMEOUT: parsePositiveInt(process.env.OLLAMA_STREAMING_TIMEOUT, 120000),
   MAX_RETRIES: parsePositiveInt(process.env.OLLAMA_MAX_RETRIES, 3)

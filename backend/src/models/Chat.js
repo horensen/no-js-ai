@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { DEFAULT_MODEL } = require('../utils/constants');
 
 // MongoDB Schema for Chat
 const chatSchema = new mongoose.Schema({
@@ -7,6 +8,11 @@ const chatSchema = new mongoose.Schema({
     type: String,
     default: '',
     maxlength: 2000  // Reasonable limit for system prompts
+  },
+  selectedModel: {
+    type: String,
+    default: DEFAULT_MODEL,
+    required: true
   },
   messages: [{
     role: { type: String, enum: ['user', 'assistant'], required: true },

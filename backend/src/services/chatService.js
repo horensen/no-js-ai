@@ -79,17 +79,28 @@ async function getOrCreateChatSession(sessionId) {
     let chat = await Chat.findOne({ sessionId });
 
     if (!chat) {
+      const { DEFAULT_MODEL } = require('../utils/constants');
       chat = new Chat({
         sessionId,
         messages: [],
         systemPrompt: '',
+        selectedModel: DEFAULT_MODEL,
         createdAt: new Date(),
         updatedAt: new Date()
       });
       await chat.save();
-      logger.debug(`Created new chat session: ${sessionId}`, 'CHAT_SERVICE');
+      logger.debug(`Created new chat session: ${sessionId} with model: ${DEFAULT_MODEL}`, 'CHAT_SERVICE');
     } else {
       logger.debug(`Retrieved existing chat session: ${sessionId}`, 'CHAT_SERVICE');
+
+      // Ensure selectedModel exists (for backward compatibility with existing sessions)
+      if (!chat.selectedModel) {
+        const { DEFAULT_MODEL } = require('../utils/constants');
+        chat.selectedModel = DEFAULT_MODEL;
+        chat.updatedAt = new Date();
+        await chat.save();
+        logger.debug(`Updated existing session ${sessionId} with default model: ${DEFAULT_MODEL}`, 'CHAT_SERVICE');
+      }
     }
 
     const duration = Date.now() - startTime;
@@ -181,6 +192,40 @@ async function updateSystemPrompt(sessionId, systemPrompt) {
 }
 
 /**
+ * Update selected model for a chat session with validation
+ * @param {string} sessionId - Session identifier
+ * @param {string} modelName - Name of the selected model
+ * @returns {Promise<object>} - Updated chat session
+ */
+async function updateSelectedModel(sessionId, modelName) {
+  try {
+    validateSessionId(sessionId);
+
+    // Validate model name
+    if (!modelName || typeof modelName !== 'string') {
+      throw new Error('Model name is required and must be a string');
+    }
+
+    const trimmedModelName = modelName.trim();
+    if (trimmedModelName.length === 0) {
+      throw new Error('Model name cannot be empty');
+    }
+
+    const chat = await getOrCreateChatSession(sessionId);
+    chat.selectedModel = trimmedModelName;
+    chat.updatedAt = new Date();
+
+    await chat.save();
+
+    logger.debug(`Updated selected model for session ${sessionId} to ${trimmedModelName}`, 'CHAT_SERVICE');
+    return chat;
+  } catch (error) {
+    logger.error('Error updating selected model', 'CHAT_SERVICE', error);
+    throw error;
+  }
+}
+
+/**
  * Get all chat sessions with metadata and pagination support
  * @param {number} limit - Maximum number of sessions to return
  * @param {number} skip - Number of sessions to skip
@@ -198,7 +243,7 @@ async function getAllChatSessions(limit = MAX_SESSIONS_PER_QUERY, skip = 0) {
       .sort({ updatedAt: -1 })
       .limit(validLimit)
       .skip(validSkip)
-      .select('sessionId messages systemPrompt createdAt updatedAt')
+      .select('sessionId messages systemPrompt selectedModel createdAt updatedAt')
       .lean();
 
     const result = sessions.map(session => ({
@@ -206,6 +251,7 @@ async function getAllChatSessions(limit = MAX_SESSIONS_PER_QUERY, skip = 0) {
       messageCount: session.messages?.length || 0,
       messages: session.messages || [], // Include messages for API formatting
       systemPrompt: session.systemPrompt || '',
+      selectedModel: session.selectedModel || '',
       lastMessage: session.messages?.length > 0
         ? session.messages[session.messages.length - 1]
         : null,
@@ -334,6 +380,7 @@ module.exports = {
   getChatHistory,
   getSystemPrompt,
   updateSystemPrompt,
+  updateSelectedModel,
   getAllChatSessions,
   deleteChatSession,
   addMessageToSession,
