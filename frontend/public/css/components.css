@@ -364,12 +364,6 @@
     line-height: 1.5;
     cursor: pointer;
     transition: all 0.2s ease;
-    appearance: none;
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ececf1' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
-    background-position: right 0.75rem center;
-    background-repeat: no-repeat;
-    background-size: 1.25rem;
-    padding-right: 2.5rem;
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -489,9 +483,26 @@ body.gptv4-body .gptv4-system-prompt-preview {
     color: #cbd5e1;
 }
 
+/* Light theme override for system prompt textarea */
+body.gptv4-body-light .gptv4-system-prompt-textarea {
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    color: #1f2937;
+}
+
+body.gptv4-body-light .gptv4-system-prompt-textarea:focus {
+    border-color: #10a37f;
+    box-shadow: 0 0 0 1px #10a37f;
+}
+
+body.gptv4-body-light .gptv4-system-prompt-textarea::placeholder {
+    color: #6b7280;
+    opacity: 1;
+}
+
 /* Light theme override for system prompt button */
 body.gptv4-body-light .gptv4-system-prompt-btn {
-    color: #000000;
+    color: white;
     border-color: #000000;
 }
 
@@ -507,6 +518,40 @@ body.gptv4-body-light .gptv4-model-submit-btn {
 
 body.gptv4-body-light .gptv4-model-submit-btn:hover {
     background: #0d8a6b;
+}
+
+/* Light theme overrides for model dropdown */
+body.gptv4-body-light .gptv4-model-dropdown {
+    background: #ffffff;
+    border: 1px solid #d1d5db;
+    color: #1f2937;
+}
+
+body.gptv4-body-light .gptv4-model-dropdown:focus {
+    border-color: #10a37f;
+    box-shadow: 0 0 0 1px #10a37f;
+}
+
+body.gptv4-body-light .gptv4-model-dropdown option {
+    background: #ffffff;
+    color: #1f2937;
+}
+
+body.gptv4-body-light .gptv4-model-selection-section {
+    background: rgba(0, 0, 0, 0.03);
+}
+
+body.gptv4-body-light .gptv4-model-selection-title {
+    color: #4b5563;
+}
+
+body.gptv4-body-light .gptv4-model-info {
+    color: #6b7280;
+}
+
+body.gptv4-body-light .gptv4-model-info #current-model {
+    color: #1f2937;
+    font-weight: 500;
 }
 
 /* Additional constraints for model dropdown when opened */
