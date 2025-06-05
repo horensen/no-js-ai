@@ -36,7 +36,7 @@
                     <% if (locals.availableModels && locals.availableModels.length > 0) { %>
                         <% locals.availableModels.forEach(function(model) { %>
                             <option value="<%= model.name %>" <%= (locals.selectedModel === model.name) ? 'selected' : '' %>>
-                                <%= model.name.length > 50 ? model.name.substring(0, 50) + '...' : model.name %>
+                                <%= model.name %>
                             </option>
                         <% }); %>
                     <% } else { %>
@@ -49,7 +49,7 @@
         <div class="gptv4-model-info">
             <% if (locals.availableModels && locals.availableModels.length > 0) { %>
                 <small>Current: <span id="current-model" title="<%= locals.selectedModel || 'None selected' %>">
-                    <%= locals.selectedModel ? (locals.selectedModel.length > 30 ? locals.selectedModel.substring(0, 30) + '...' : locals.selectedModel) : 'None selected' %>
+                    <%= locals.selectedModel ? locals.selectedModel : 'None selected' %>
                 </span></small>
             <% } else { %>
                 <small>Current: <span id="current-model">No models available</span></small>

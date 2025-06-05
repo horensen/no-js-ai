@@ -262,13 +262,14 @@
 
 .gptv4-system-prompt-textarea {
     width: 100%;
-    min-height: 80px;
+    min-height: 60px;
     padding: 0.75rem;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 6px;
     color: #ececf1;
-    font-size: 0.875rem;
+    font-family: Arial, sans-serif;
+    font-size: 0.75rem;
     line-height: 1.5;
     resize: vertical;
     transition: all 0.2s ease;
