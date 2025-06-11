@@ -1,42 +1,67 @@
-# Dependencies
+# Dependencies and lock files
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-package-lock.json
+pnpm-debug.log*
+.pnpm
+.npm
 
-# Environment files
+# Build artifacts and cache
+dist/
+build/
+.next/
+.cache/
+.parcel-cache/
+.webpack/
+*.tsbuildinfo
+
+# Environment files (keep examples)
 .env
 .env.*
 !.env.example
 !docker.env.example
+docker.env
 
-# Logs
+# Logs and runtime data
 logs/
 *.log
-
-# Runtime data
 pids/
 *.pid
 *.seed
 *.pid.lock
 
-# Coverage directory used by tools like istanbul
+# Coverage and test artifacts
 coverage/
 .nyc_output/
+test-results/
+playwright-report/
+.coverage
 
-# Git
-.git/
-.gitignore
-
-# Docker
+# Docker and infrastructure
 docker-compose*.yml
 .dockerignore
 Dockerfile*
+docker-data/
+backups/
 
-# Documentation
+# Git and version control
+.git/
+.gitignore
+.gitattributes
+.gitmodules
+
+# Documentation and assets
 README.md
+CHANGELOG.md
+LICENSE
+*.md
 docs/
+screenshots/
+*.png
+*.jpg
+*.gif
+*.svg
 
 # IDE and editor files
 .vscode/
@@ -44,8 +69,12 @@ docs/
 *.swp
 *.swo
 *~
+.project
+.classpath
+.settings/
+*.sublime-*
 
-# OS files
+# OS generated files
 .DS_Store
 .DS_Store?
 ._*
@@ -53,7 +82,41 @@ docs/
 .Trashes
 ehthumbs.db
 Thumbs.db
+desktop.ini
 
-# Temporary files
+# Temporary and backup files
 tmp/
 temp/
+*.tmp
+*.temp
+*.bak
+*.backup
+*~
+
+# Security and secrets
+*.key
+*.pem
+*.p12
+*.pfx
+secrets/
+.secrets
+
+# Development tools
+.eslintcache
+.stylelintcache
+.prettiercache
+
+# Python (if any)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+
+# Miscellaneous
+*.tgz
+*.tar.gz
+*.zip
+.tgz
