@@ -135,7 +135,9 @@ describe('ChatService', () => {
       const mockChat = {
         sessionId: 'existingSession123',
         messages: [{ role: 'user', content: 'Hello' }],
-        systemPrompt: 'Test prompt'
+        systemPrompt: 'Test prompt',
+        selectedModel: 'llama2',
+        save: jest.fn().mockResolvedValue()
       };
 
       Chat.findOne.mockResolvedValue(mockChat);
@@ -167,7 +169,7 @@ describe('ChatService', () => {
       expect(mockNewChat.save).toHaveBeenCalled();
       expect(result).toBe(mockNewChat);
       expect(logger.debug).toHaveBeenCalledWith(
-        'Created new chat session: newSession123',
+        'Created new chat session: newSession123 with model: undefined',
         'CHAT_SERVICE'
       );
     });

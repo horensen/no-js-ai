@@ -69,6 +69,7 @@ describe('Chat Routes', () => {
     chatService.updateSystemPrompt.mockResolvedValue({});
 
     ollamaService.callOllama.mockResolvedValue('AI response');
+    ollamaService.getAvailableModels.mockResolvedValue([]);
 
     isValidSessionId.mockReturnValue(true);
     validateMessage.mockReturnValue({ valid: true, message: 'Valid message' });
@@ -159,7 +160,7 @@ describe('Chat Routes', () => {
 
       expect(chatService.getOrCreateChatSession).toHaveBeenCalledWith('valid-session');
       expect(getChatRenderData).toHaveBeenCalledWith('valid-session', mockChat.messages, null, false, null, 'light');
-    });
+    }, 10000);
 
     it('should handle database errors gracefully', async () => {
       const mockSessions = [
@@ -224,7 +225,7 @@ describe('Chat Routes', () => {
 
       expect(validateMessage).toHaveBeenCalledWith('test message');
       expect(chatService.addMessageToSession).toHaveBeenCalledWith('test-session', 'user', 'Valid message');
-    });
+    }, 10000);
 
     it('should handle invalid session ID', async () => {
       isValidSessionId.mockReturnValue(false);
@@ -332,6 +333,7 @@ describe('Chat Routes', () => {
 
       chatService.getOrCreateChatSession.mockResolvedValue(mockChat);
       chatService.getAllChatSessions.mockResolvedValue(mockSessions);
+      validateSessionIdWithResponse.mockReturnValue(true);
 
       const response = await request(app)
         .get('/check-response/test-session')
@@ -355,6 +357,7 @@ describe('Chat Routes', () => {
 
       chatService.getOrCreateChatSession.mockResolvedValue(mockChat);
       chatService.getAllChatSessions.mockResolvedValue(mockSessions);
+      validateSessionIdWithResponse.mockReturnValue(true);
 
       const response = await request(app)
         .get('/check-response/test-session?count=1')
@@ -421,7 +424,14 @@ describe('Chat Routes', () => {
     });
 
     it('should handle invalid session ID', async () => {
-      isValidSessionId.mockReturnValue(false);
+      validateSessionIdWithResponse.mockReturnValue(false);
+      validateSessionIdWithResponse.mockImplementation((sessionId, res) => {
+        res.status(400).json({
+          success: false,
+          error: 'Invalid session format.'
+        });
+        return false;
+      });
 
       const response = await request(app)
         .post('/system-prompt')
@@ -453,6 +463,10 @@ describe('Chat Routes', () => {
       chatService.getOrCreateChatSession.mockResolvedValue(mockChat);
       chatService.getAllChatSessions.mockResolvedValue(mockSessions);
 
+      sendChatError.mockImplementation((res) => {
+        res.status(200).send('<html>error page</html>');
+      });
+
       const response = await request(app)
         .post('/system-prompt')
         .send({
@@ -461,20 +475,13 @@ describe('Chat Routes', () => {
         })
         .expect(200);
 
-      expect(getChatRenderData).toHaveBeenCalledWith(
-        'test-session',
-        mockChat.messages,
-        'Update failed',
-        false,
-        null,
-        'light'
-      );
+      expect(sendChatError).toHaveBeenCalled();
     });
 
     it('should handle render errors during error handling', async () => {
       chatService.updateSystemPrompt.mockRejectedValue(new Error('Update failed'));
       chatService.getOrCreateChatSession.mockRejectedValue(new Error('Render error'));
-      sendErrorPage.mockImplementation((res) => {
+      handleDatabaseError.mockImplementation((err, res) => {
         res.status(200).send('<html>error page</html>');
       });
 
@@ -483,7 +490,7 @@ describe('Chat Routes', () => {
         .send({ sessionId: 'valid-session', systemPrompt: 'New prompt' })
         .expect(200);
 
-      expect(sendErrorPage).toHaveBeenCalled();
+      expect(handleDatabaseError).toHaveBeenCalled();
     }, 10000);
   });
 

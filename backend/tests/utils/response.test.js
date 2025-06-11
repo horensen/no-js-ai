@@ -170,7 +170,9 @@ describe('Response Utility', () => {
         pendingMessage: null,
         sessions,
         currentSessionId: sessionId,
-        theme: 'light'
+        theme: 'light',
+        availableModels: [],
+        selectedModel: ''
       });
     });
 
